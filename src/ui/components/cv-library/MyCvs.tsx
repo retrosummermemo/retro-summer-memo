@@ -1,4 +1,4 @@
-import './cvs.css'
+import './cv-library.css'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeCv, type CvAnalysis } from '../../../domain/cvAnalysis'
 import { applicationCvs, copiesByCv, generalCvs } from '../../../domain/cvLibrary'
