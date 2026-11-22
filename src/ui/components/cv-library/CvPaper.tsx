@@ -1,4 +1,4 @@
-import './cvs.css'
+import './cv-library.css'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { pageSpec } from '../../../domain/fonts'
 import type { CatalogSection, Cv, Snapshot } from '../../../domain/model'
