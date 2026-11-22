@@ -215,12 +215,61 @@ describe('MCP tools', () => {
     expect(built.review.keywords.covered).toEqual(expect.arrayContaining(['Node.js', 'Redis', 'React']))
     expect(built.review.keywords.notInExperience).toContain('Kubernetes')
 
+    // Built for the application: it is that application's own CV, shown as sent until a version is pinned.
+    expect(built.application_id).toBe(globex.id)
     const stored = await load()
-    expect(stored.applications.find((item) => item.id === globex.id)?.attachment).toEqual({ kind: 'cv', cvId: built.cv_id, versionId: built.version_id })
+    expect(stored.cvs.find((cv) => cv.id === built.cv_id)?.applicationId).toBe(globex.id)
+    expect(stored.applications.find((item) => item.id === globex.id)?.attachment).toEqual({ kind: 'cv', cvId: built.cv_id, versionId: '' })
+    // Building for it again rebuilds that CV instead of making another one.
+    const rebuilt = await call('build_cv', { experience_ids: [latency.experience_id], application_id: globex.id })
+    expect(rebuilt.cv_id).toBe(built.cv_id)
+    expect((await load()).cvs.filter((cv) => cv.applicationId === globex.id)).toHaveLength(1)
     expect(stored.cvs.find((cv) => cv.id === built.cv_id)?.enabledSections).toEqual(
       expect.arrayContaining(['experience', 'projects', stored.sections.find((section) => section.name === 'Certificaciones')!.id]),
     )
     expect(certification.entry_id).toBeTruthy()
+  })
+
+  it('keeps general CVs and one CV per application, copied from a general one', async () => {
+    const { call, load, document } = await setup()
+    const acme = document.applications.find((application) => application.company === 'Acme')!
+    const globex = document.applications.find((application) => application.company === 'Globex')!
+
+    const listed = await call('list_cvs')
+    expect(listed.general).toEqual([expect.objectContaining({ cv_id: 'seed-cv', title: 'Main CV', application_copies: 1 })])
+    expect(listed.for_applications).toEqual([
+      expect.objectContaining({ cv_id: 'cv-2', application_id: acme.id, application: 'Acme — Backend Engineer', based_on: 'Main CV', step: 'Call con RRHH' }),
+    ])
+
+    // A new general CV per role, then a copy of it for an application.
+    const react = await call('copy_cv', { cv_id: 'seed-cv', title: 'CV React' })
+    expect(react).toMatchObject({ title: 'CV React', based_on: 'Main CV', general: true })
+    expect(react.review.findings).toBeDefined()
+    expect((await call('get_application', { id: globex.id })).own_cv).toMatchObject({ none: true })
+    const forGlobex = await call('copy_cv', { cv_id: react.cv_id, application_id: globex.id })
+    expect(forGlobex).toMatchObject({ title: 'CV React — Globex', based_on: 'CV React', application_id: globex.id })
+    expect((await call('get_application', { id: globex.id })).own_cv).toMatchObject({ cv_id: forGlobex.cv_id, based_on: 'CV React', versions: 0 })
+    expect(await call('copy_cv', { cv_id: react.cv_id, application_id: globex.id })).toMatchObject({ error: expect.stringContaining('ya tiene su CV') })
+
+    // Back to a general CV, and into the application again.
+    await call('update_cv', { cv_id: forGlobex.cv_id, application_id: null, title: 'CV React (Globex)' })
+    let stored = await load()
+    expect(stored.cvs.find((cv) => cv.id === forGlobex.cv_id)).toMatchObject({ title: 'CV React (Globex)', basedOn: react.cv_id })
+    expect(stored.cvs.find((cv) => cv.id === forGlobex.cv_id)?.applicationId).toBeUndefined()
+    await call('update_cv', { cv_id: forGlobex.cv_id, application_id: globex.id })
+    stored = await load()
+    expect(stored.cvs.find((cv) => cv.id === forGlobex.cv_id)?.applicationId).toBe(globex.id)
+
+    // A general CV sent as it is: the application records that version, the CV stays general.
+    const sent = await call('build_cv', { cv_id: 'seed-cv', experience_ids: [], application_id: acme.id })
+    expect(sent.general).toBe(true)
+    stored = await load()
+    expect(stored.applications.find((item) => item.id === acme.id)?.attachment).toEqual({ kind: 'cv', cvId: 'seed-cv', versionId: sent.version_id })
+    expect(stored.cvs.find((cv) => cv.id === 'seed-cv')?.applicationId).toBeUndefined()
+
+    // Deleting a CV clears it from the applications that had it.
+    await call('delete_cv', { id: 'seed-cv' })
+    expect((await load()).applications.find((item) => item.id === acme.id)?.attachment).toBeNull()
   })
 
   it('deletes experiences and entries', async () => {

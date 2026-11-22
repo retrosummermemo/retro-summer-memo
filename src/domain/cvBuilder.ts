@@ -24,6 +24,8 @@ import type { TemplateId } from './templates'
 export type CvRequest = {
   /** Rebuild this CV; a new one is created when absent. */
   cvId?: string
+  /** Id for the new CV (default: a random one). */
+  newId?: string
   title?: string
   position?: string
   company?: string
@@ -141,7 +143,7 @@ export function buildCv(
   const templateId = request.templateId ?? existing?.templateId ?? 'classic'
   const cv: Cv = {
     ...(existing ?? {
-      id: crypto.randomUUID(),
+      id: request.newId ?? crypto.randomUUID(),
       title: '',
       position: '',
       company: '',

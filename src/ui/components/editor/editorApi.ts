@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import type { Application } from '../../../domain/applications'
 import type { CvAnalysis } from '../../../domain/cvAnalysis'
 import type { CvGraph, CvOutline } from '../../../domain/cvEditing'
 import type { Cv, ResumeDocument, Snapshot } from '../../../domain/model'
@@ -33,6 +34,10 @@ export type EditorApi = {
   startReview: (title: string, refs: string[]) => void
   stepReview: (delta: -1 | 1) => void
   endReview: () => void
+  /** The application this CV was made for, if any. */
+  application?: Application
+  /** Records a version as the one sent to that application. */
+  markSent?: (versionId: string) => void
   /** Assistants connected through the MCP: the panels suggest what to ask them. */
   assistant?: { connected: boolean; onConnect: () => void }
 }

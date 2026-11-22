@@ -230,6 +230,10 @@ export type Cv = {
   versions: CvVersion[]
   nodes: ResumeNode[]
   edges: ResumeEdge[]
+  /** The application this CV was made for (its tailored copy). None: a general CV, like "CV React". */
+  applicationId?: string
+  /** The CV it was copied from. */
+  basedOn?: string
   /** Anything else: language, notes… */
   extra?: Extra
 }
@@ -465,45 +469,6 @@ export function personalGraph(profile: Profile): { nodes: ResumeNode[]; edges: R
     data: cloneProfile(profile),
   }
   return { nodes: [person], edges: [] }
-}
-
-/** Blank CV graph with selected master experiences already attached to a role. */
-export function graphFromSelection(
-  profile: Profile,
-  role: { title: string; company: string },
-  selected: Experience[],
-): { nodes: ResumeNode[]; edges: ResumeEdge[] } {
-  const base = personalGraph(profile)
-  if (selected.length === 0) return base
-
-  const roleId = crypto.randomUUID()
-  const roleNode: RoleNode = {
-    id: roleId,
-    type: 'role',
-    position: { x: ROLE_X, y: TOP + ROW },
-    data: {
-      title: role.title.trim() || 'Role',
-      company: role.company.trim(),
-      location: '',
-      start: '',
-      end: '',
-    },
-  }
-
-  const bullets: BulletNode[] = []
-  const edges: ResumeEdge[] = []
-  selected.forEach((item, index) => {
-    const bulletId = crypto.randomUUID()
-    bullets.push({
-      id: bulletId,
-      type: 'bullet',
-      position: { x: BULLET_X, y: TOP + ROW + index * ROW },
-      data: { text: item.text, ability: '', skills: [...item.skills] },
-    })
-    edges.push({ id: `e-${roleId}-${bulletId}`, source: roleId, target: bulletId })
-  })
-
-  return { nodes: [...base.nodes, roleNode, ...bullets], edges }
 }
 
 /**

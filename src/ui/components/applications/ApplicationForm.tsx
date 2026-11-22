@@ -159,7 +159,7 @@ export function ApplicationForm({ initial, applications, statuses, cvs, onSubmit
         {!initial && !values.attachment ? (
           <label className="checkbox-row">
             <input type="checkbox" checked={buildCv} onChange={(event) => setBuildCv(event.target.checked)} />
-            Armar un CV para este aviso al guardar
+            Al guardar, armar su CV (elegís de qué CV partir)
           </label>
         ) : null}
 

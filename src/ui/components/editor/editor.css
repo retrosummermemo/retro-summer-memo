@@ -2247,3 +2247,48 @@ details.cv-checks[open] summary h3::after {
     padding: 20px 16px 96px;
   }
 }
+
+/* Inside an application (CV tab): no way back, the page around it is the context. */
+
+.cv-editor.is-embedded {
+  border-top: 1px solid var(--line);
+}
+
+.cv-editor.is-embedded .cv-editor-identity {
+  padding-left: 2px;
+  border-left: none;
+}
+
+.cv-editor-subline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cv-editor-subline .cv-editor-target {
+  min-width: 0;
+}
+
+.cv-editor-based {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fff1e5;
+  color: #a4400a;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cv-version-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.cv-version-actions .link-button {
+  font-size: 12px;
+  white-space: nowrap;
+}

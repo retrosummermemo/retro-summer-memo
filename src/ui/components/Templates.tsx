@@ -15,10 +15,10 @@ type LibraryProps = {
   views?: SectionView[]
 }
 
-type LibraryPage = 'cards' | 'sections' | 'roles'
+type LibraryPage = 'sections' | 'roles'
 
 export function Library({ sections, roleGraphs, bank, jobs, onChange, onChangeRoles, views = [] }: LibraryProps) {
-  const [page, setPage] = useState<LibraryPage>('cards')
+  const [page, setPage] = useState<LibraryPage>('sections')
   const [openId, setOpenId] = useState<string | null>(null)
   const [draftId, setDraftId] = useState<string | null>(null)
   const draftRef = useRef<HTMLInputElement>(null)
@@ -38,37 +38,22 @@ export function Library({ sections, roleGraphs, bank, jobs, onChange, onChangeRo
     onChange((current) => [...current, { id, name: '', description: '', active: true, builtIn: false }])
   }
 
-  if (page === 'cards') {
-    return (
-      <div className="home">
-        <div className="home-head">
-          <h1>Biblioteca</h1>
-        </div>
-        <ul className="project-grid">
-          <li>
-            <button type="button" className="project-card library-card" onClick={() => setPage('sections')}>
-              <span className="project-title">Secciones</span>
-              <span className="project-meta">{countLabel(sections.length, 'sección', 'secciones')}</span>
-            </button>
-          </li>
-          <li>
-            <button type="button" className="project-card library-card" onClick={() => setPage('roles')}>
-              <span className="project-title">Puestos</span>
-              <span className="project-meta">{countLabel(roleGraphs.length, 'puesto', 'puestos')}</span>
-            </button>
-          </li>
-        </ul>
-      </div>
-    )
-  }
-
   return (
     <div className="home">
       <div className="home-head">
-        <button type="button" className="library-back" onClick={() => setPage('cards')}>
-          Biblioteca
-        </button>
-        <h1>{page === 'sections' ? 'Secciones' : 'Puestos'}</h1>
+        <p className="profile-lede">
+          {page === 'sections'
+            ? 'Las secciones que pueden tener tus CVs (Experiencia, Educación, Proyectos, Certificaciones…) y lo que hay en cada una.'
+            : 'Puestos armados como plantillas, para sumarlos al grafo de un CV.'}
+        </p>
+        <div className="segment" role="group" aria-label="Qué ver">
+          <button type="button" className={page === 'sections' ? 'is-current' : undefined} aria-pressed={page === 'sections'} onClick={() => setPage('sections')}>
+            Secciones · {sections.length}
+          </button>
+          <button type="button" className={page === 'roles' ? 'is-current' : undefined} aria-pressed={page === 'roles'} onClick={() => setPage('roles')}>
+            Plantillas de puestos · {roleGraphs.length}
+          </button>
+        </div>
       </div>
       {page === 'roles' ? <RoleGraphs graphs={roleGraphs} bank={bank} jobs={jobs} onChange={onChangeRoles} /> : (
       <>
@@ -230,8 +215,4 @@ function SectionEntries({ entries, onChange }: { entries: SectionEntry[]; onChan
       </button>
     </div>
   )
-}
-
-function countLabel(count: number, singular: string, plural: string) {
-  return `${count} ${count === 1 ? singular : plural}`
 }

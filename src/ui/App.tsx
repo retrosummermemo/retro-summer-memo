@@ -10,10 +10,16 @@ import {
 } from '@xyflow/react'
 import { type Experience } from '../domain/experiences'
 import { GraphCanvas, loadGraphPanelsOpen, type GraphPanelsOpen } from './components/GraphCanvas'
-import { Home, type ComposerSeed } from './components/Home'
+import { NewCvWizard, type ComposerSeed } from './components/NewCvWizard'
+import { PersonalData } from './components/PersonalData'
+import { MyCvs, type NewCvInput } from './components/cvs/MyCvs'
+import { ProfilePage } from './components/profile/ProfilePage'
+import { ApplicationCvStart } from './components/applications/ApplicationCvStart'
+import { useRoute, type Section } from './routes'
+import { buildCv } from '../domain/cvBuilder'
+import { assignCv, copyCv, cvOfApplication, markSentVersion } from '../domain/cvLibrary'
 import {
   buildCvVersion,
-  createCv as createCvDocument,
   deleteCv as deleteCvDocument,
   openCvGraph,
   writeProfile,
@@ -145,6 +151,12 @@ type AppProps = {
 
 export type AssistantAccess = { mcpUrl: string; access: OAuthConsent }
 
+/** The open CV as it prints now, rebuilt only when its content changes; null when no editor shows it. */
+function useDraft(editing: boolean, doc: ResumeDocument, summary: string): Snapshot | null {
+  const { nodes, edges, sections, bank } = doc
+  return useMemo(() => (editing ? buildResume(nodes, edges, summary, { sections, bank }) : null), [editing, nodes, edges, summary, sections, bank])
+}
+
 /** Nothing loaded yet: the account was just created. */
 function isEmptyAccount(document: ResumeDocument) {
   return (
@@ -162,12 +174,10 @@ export default function App({ initialDocument, store, account, notice, assistant
   const [assistantOpen, setAssistantOpen] = useState(false)
   const connections = useConnectedApps(assistant?.access)
   const assistantConnected = (connections.apps?.length ?? 0) > 0
-  const [screen, setScreen] = useState<'home' | 'workspace'>('home')
-  const [homeSection, setHomeSection] = useState<'applications' | 'projects' | 'personal' | 'experience' | 'library'>('applications')
+  const [route, navigate] = useRoute()
   const [libraryKey, setLibraryKey] = useState(0)
-  const [composerOpen, setComposerOpen] = useState(false)
-  /** Set while the new-CV wizard was opened from a job application: the CV gets attached to it. */
-  const [cvSeed, setCvSeed] = useState<(ComposerSeed & { applicationId: string }) | null>(null)
+  /** The new-CV wizard (a CV from a posting); from an application, the CV it makes is that application's. */
+  const [wizard, setWizard] = useState<{ seed: ComposerSeed | null; applicationId?: string } | null>(null)
   const [views, setViews] = useState<Views>({ preview: true, style: false, graph: true, table: false })
   const [graphPanels, setGraphPanels] = useState<GraphPanelsOpen>(loadGraphPanelsOpen)
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
@@ -238,18 +248,37 @@ export default function App({ initialDocument, store, account, notice, assistant
     }
   }, [])
 
+  // What the URL points at: an application (and its own CV, on the CV tab) or a CV.
+  const routeApplication = route.page === 'applications' && route.applicationId ? doc.applications.find((item) => item.id === route.applicationId) : undefined
+  const applicationCv = routeApplication && route.page === 'applications' && route.tab === 'cv' ? cvOfApplication(doc, routeApplication.id) : undefined
+  const routeCv = route.page === 'cvs' && route.cvId ? doc.cvs.find((item) => item.id === route.cvId) : undefined
+  const wantedCvId = routeCv?.id ?? applicationCv?.id
+
+  // The CV on screen is the open one (its graph lives at the document root): open the one the URL
+  // asks for (back and forward, a shared link, a CV the assistant just made for this application).
+  // Adjusted while rendering, so the previous CV never shows under the new address.
+  if (wantedCvId && doc.activeCvId !== wantedCvId) {
+    setDoc((current) => withEnabledSectionNodes(openCvGraph(current, wantedCvId)))
+    if (selectedVersionId !== null) setSelectedVersionId(null)
+  }
+
+  // A link to something that no longer exists goes to its list instead.
+  const missing = (route.page === 'cvs' && route.cvId && !routeCv) || (route.page === 'applications' && route.applicationId && !routeApplication)
+  useEffect(() => {
+    if (missing) navigate({ page: route.page === 'cvs' ? 'cvs' : 'applications' }, { replace: true })
+  }, [missing, route.page, navigate])
+
   const openedCv = activeCv(doc)
-  const inWorkspace = screen === 'workspace' && openedCv !== undefined
+  const inWorkspace = routeCv !== undefined && doc.activeCvId === routeCv.id
+  const inApplicationCv = applicationCv !== undefined && doc.activeCvId === applicationCv.id
   const cv = openedCv ?? NO_CV
   const snapshot = shownSnapshot(cv, selectedVersionId)
   const versionNote = olderVersionNote(cv, selectedVersionId)
   // The editor shows the CV live: built from its content on every change (versions are fixed copies).
-  const draft = useMemo(
-    () => (inWorkspace ? buildResume(doc.nodes, doc.edges, cv.summary, { sections: doc.sections, bank: doc.bank }) : null),
-    [inWorkspace, doc.nodes, doc.edges, cv.summary, doc.sections, doc.bank],
-  )
+  const editing = inWorkspace || inApplicationCv
+  const draft = useDraft(editing, doc, cv.summary)
   const inEditor = inWorkspace && editorMode === 'editor'
-  const editorShown = inEditor ? cv.versions.find((version) => version.id === selectedVersionId)?.snapshot ?? draft : null
+  const editorShown = inEditor || inApplicationCv ? cv.versions.find((version) => version.id === selectedVersionId)?.snapshot ?? draft : null
   const split = views.preview && views.graph
 
   const onNodesChange: OnNodesChange<ResumeNode> = (changes) => {
@@ -525,37 +554,71 @@ export default function App({ initialDocument, store, account, notice, assistant
     setDoc((current) => withEnabledSectionNodes(openCvGraph(current, id)))
     setSelectedVersionId(null)
     setMetadataOpen(false)
-    closeComposer()
-    setScreen('workspace')
+    setWizard(null)
+    navigate({ page: 'cvs', cvId: id })
   }
 
+  /** Opens the CV tab of an application (its CV opens with it). */
+  function openApplicationCv(applicationId: string) {
+    const own = cvOfApplication(doc, applicationId)
+    if (own) setDoc((current) => withEnabledSectionNodes(openCvGraph(current, own.id)))
+    setSelectedVersionId(null)
+    navigate({ page: 'applications', applicationId, tab: 'cv' })
+  }
+
+  /**
+   * The wizard's CV: a general one, or the CV of the application it was opened from. Each chosen
+   * experience goes under the role or project where it happened.
+   */
   function createCv(draft: CvDraft) {
     const id = crypto.randomUUID()
-    const versionId = crypto.randomUUID()
-    const forApplication = cvSeed?.applicationId
+    const forApplication = wizard?.applicationId
     setDoc((current) => {
-      const { document } = createCvDocument(current, draft, { id, versionId })
-      if (!forApplication) return document
-      // Latest version ('') until the user pins the one they actually sent.
-      return {
-        ...document,
-        applications: document.applications.map((application) =>
-          application.id === forApplication
-            ? updateApplication(application, { attachment: { kind: 'cv', cvId: id, versionId: '' } })
-            : application,
-        ),
-      }
+      const { document } = buildCv(current, {
+        newId: id,
+        title: draft.title,
+        position: draft.position,
+        company: draft.company,
+        posting: draft.posting,
+        templateId: draft.templateId,
+        fontId: draft.fontId,
+        experienceIds: draft.experienceIds,
+      })
+      return forApplication && current.applications.some((application) => application.id === forApplication) ? assignCv(document, id, forApplication) : document
     })
-    setSelectedVersionId(editorMode === 'editor' ? null : versionId)
+    setSelectedVersionId(null)
     setMetadataOpen(false)
-    closeComposer()
+    setWizard(null)
     setViews((current) => ({ ...current, preview: true, graph: true }))
-    setScreen('workspace')
+    navigate(forApplication ? { page: 'applications', applicationId: forApplication, tab: 'cv' } : { page: 'cvs', cvId: id })
   }
 
-  function closeComposer() {
-    setComposerOpen(false)
-    setCvSeed(null)
+  /** "Nuevo CV" in Mis CVs: a general CV from the whole profile, its structure only, or a copy. */
+  function createGeneralCv(input: NewCvInput) {
+    const id = crypto.randomUUID()
+    setDoc((current) => {
+      if (input.start.kind === 'copy') {
+        const copied = copyCv(current, input.start.cvId, { id, title: input.title }).document
+        const positioned = input.position ? { ...copied, cvs: copied.cvs.map((item) => (item.id === id ? { ...item, position: input.position } : item)) } : copied
+        return withEnabledSectionNodes(openCvGraph(positioned, id))
+      }
+      const levels = new Map(current.knowledge.map((answer) => [answer.id, answer.level]))
+      const experienceIds =
+        input.start.kind === 'profile' ? current.bank.filter((item) => item.entryId && levels.get(item.id) !== 0).map((item) => item.id) : []
+      return buildCv(current, { newId: id, title: input.title, position: input.position, experienceIds }).document
+    })
+    setSelectedVersionId(null)
+    navigate({ page: 'cvs', cvId: id })
+  }
+
+  /** The CV of an application, as a copy of a general CV. */
+  function copyForApplication(applicationId: string, cvId: string) {
+    const id = crypto.randomUUID()
+    setDoc((current) => {
+      if (cvOfApplication(current, applicationId)) return current
+      return withEnabledSectionNodes(openCvGraph(copyCv(current, cvId, { id, applicationId }).document, id))
+    })
+    setSelectedVersionId(null)
   }
 
   function changeTracker(update: (current: TrackerData) => TrackerData) {
@@ -565,28 +628,33 @@ export default function App({ initialDocument, store, account, notice, assistant
     }))
   }
 
-  function openCvVersion(cvId: string, versionId: string) {
-    openCv(cvId)
-    setSelectedVersionId(versionId || null)
-  }
-
-  /** New-CV wizard prefilled from a job application; the CV it creates gets attached to it. */
+  /** New-CV wizard prefilled from a job application; the CV it creates is that application's. */
   function buildCvFor(application: Application) {
-    setCvSeed({
+    setWizard({
       applicationId: application.id,
-      title: [application.company, application.title].filter(Boolean).join(' — '),
-      position: application.title,
-      company: application.company,
-      posting: application.posting,
+      seed: {
+        title: [application.company, application.title].filter(Boolean).join(' — '),
+        position: application.title,
+        company: application.company,
+        posting: application.posting,
+      },
     })
-    setHomeSection('projects')
-    setScreen('home')
-    setComposerOpen(true)
   }
 
   function deleteCv(id: string) {
     setDoc((current) => deleteCvDocument(current, id))
-    setScreen('home')
+    if (route.page === 'cvs' && route.cvId === id) navigate({ page: 'cvs' })
+  }
+
+  function goTo(section: Section) {
+    setWizard(null)
+    setMetadataOpen(false)
+    if (section === 'profile') {
+      setLibraryKey((key) => key + 1)
+      navigate({ page: 'profile', tab: 'personal' })
+    } else {
+      navigate({ page: section })
+    }
   }
 
   function clearSelection() {
@@ -861,36 +929,90 @@ export default function App({ initialDocument, store, account, notice, assistant
     </section>
   )
 
+  const assistantHint = assistant ? { connected: assistantConnected, onConnect: () => setAssistantOpen(true) } : undefined
+  const openApplications = doc.applications.filter((application) => {
+    const kind = doc.applicationStatuses.find((status) => status.id === application.statusId)?.kind
+    return kind !== 'rejected' && kind !== 'withdrawn'
+  }).length
+  const basedOnTitle = cv.basedOn ? doc.cvs.find((item) => item.id === cv.basedOn)?.title ?? 'un CV borrado' : undefined
+
+  // What prints (PDF download) while the editor is on screen: the CV as shown.
+  const printSource = editorShown ? (
+    <div className="print-source" aria-hidden="true">
+      <ResumePreview
+        snapshot={editorShown}
+        templateId={cv.templateId}
+        fontId={cv.fontId}
+        fontSize={cv.fontSize}
+        lineHeight={cv.lineHeight}
+        marginId={cv.marginId}
+        pageSize={cv.pageSize}
+        skillsFormat={cv.skillsFormat ?? 'list'}
+        accentColor={cv.accentColor}
+        sectionOrder={cv.sectionOrder}
+        enabledSections={cv.enabledSections}
+        sections={doc.sections}
+        blocks={editorShown.blocks ?? []}
+      />
+    </div>
+  ) : null
+
+  /** The CV tab of an application: its CV in the editor, or the general CVs to start it from. */
+  function applicationCvTab(application: Application) {
+    const own = cvOfApplication(doc, application.id)
+    if (own) {
+      // Opening it takes one render (see the effect above).
+      if (!inApplicationCv || !draft) return null
+      return (
+        <>
+          <CvEditor
+            doc={doc}
+            cv={cv}
+            draft={draft}
+            setDoc={setDoc}
+            saveStatus={saveStatus}
+            onRetrySave={retrySave}
+            selectedVersionId={selectedVersionId}
+            onSelectVersion={setSelectedVersionId}
+            onSaveVersion={saveVersion}
+            onGraph={() => {
+              setSelectedVersionId(null)
+              setEditorMode('graph')
+              navigate({ page: 'cvs', cvId: own.id })
+            }}
+            application={application}
+            onMarkSent={(versionId) => setDoc((current) => markSentVersion(current, application.id, own.id, versionId))}
+            basedOnTitle={basedOnTitle}
+            assistant={assistantHint}
+          />
+          {printSource}
+        </>
+      )
+    }
+    return (
+      <ApplicationCvStart
+        application={application}
+        doc={doc}
+        onCopyFrom={(cvId) => copyForApplication(application.id, cvId)}
+        onFromPosting={() => buildCvFor(application)}
+        onOpenCv={openCv}
+        onRecordSent={(attachment) =>
+          setDoc((current) => ({
+            ...current,
+            applications: current.applications.map((item) => (item.id === application.id ? updateApplication(item, { attachment }) : item)),
+          }))
+        }
+        assistant={assistantHint}
+      />
+    )
+  }
+
   return (
     <div className="app">
       <Sidebar
-        section={inWorkspace ? 'workspace' : homeSection}
-        onApplications={() => {
-          closeComposer()
-          setHomeSection('applications')
-          setScreen('home')
-        }}
-        onProjects={() => {
-          closeComposer()
-          setHomeSection('projects')
-          setScreen('home')
-        }}
-        onPersonal={() => {
-          closeComposer()
-          setHomeSection('personal')
-          setScreen('home')
-        }}
-        onExperience={() => {
-          closeComposer()
-          setHomeSection('experience')
-          setScreen('home')
-        }}
-        onLibrary={() => {
-          closeComposer()
-          setLibraryKey((key) => key + 1)
-          setHomeSection('library')
-          setScreen('home')
-        }}
+        section={route.page}
+        onNavigate={goTo}
+        counts={{ applications: openApplications, cvs: doc.cvs.length }}
         save={saveStatus}
         onRetrySave={retrySave}
         account={account}
@@ -1030,58 +1152,67 @@ export default function App({ initialDocument, store, account, notice, assistant
         </button>
       </header>
       ) : null}
-      {!inWorkspace && homeSection === 'applications' ? (
+      {route.page === 'applications' ? (
         <Applications
           applications={doc.applications}
           statuses={doc.applicationStatuses}
           companies={doc.companies}
           cvs={doc.cvs}
           onChange={changeTracker}
-          onOpenCv={openCvVersion}
-          onBuildCv={buildCvFor}
-          assistant={assistant ? { connected: assistantConnected, onConnect: () => setAssistantOpen(true) } : undefined}
+          selectedId={routeApplication?.id ?? null}
+          tab={route.tab ?? 'process'}
+          onSelect={(id, tab) => {
+            if (id && tab === 'cv') openApplicationCv(id)
+            else navigate(id ? { page: 'applications', applicationId: id, tab: tab ?? 'process' } : { page: 'applications' })
+          }}
+          renderCv={applicationCvTab}
+          assistant={assistantHint}
         />
-      ) : !inWorkspace && homeSection === 'experience' ? (
-        <ExperienceMaster
-          bank={doc.bank}
-          answers={doc.knowledge}
-          onAnswer={setKnowledge}
-          onApplyAnswers={applyKnowledge}
-          onBank={updateBank}
-          places={sectionsView(doc).flatMap((section) =>
-            section.entries.map((entry) => ({
-              id: entry.id,
-              label: `${section.name}: ${[entry.title, entry.subtitle].filter(Boolean).join(' — ') || 'Sin título'}`,
-            })),
+      ) : route.page === 'profile' ? (
+        <ProfilePage tab={route.tab} onTab={(tab) => navigate({ page: 'profile', tab })} counts={{ achievements: doc.bank.length }}>
+          {route.tab === 'achievements' ? (
+            <ExperienceMaster
+              bank={doc.bank}
+              answers={doc.knowledge}
+              onAnswer={setKnowledge}
+              onApplyAnswers={applyKnowledge}
+              onBank={updateBank}
+              places={sectionsView(doc).flatMap((section) =>
+                section.entries.map((entry) => ({
+                  id: entry.id,
+                  label: `${section.name}: ${[entry.title, entry.subtitle].filter(Boolean).join(' — ') || 'Sin título'}`,
+                })),
+              )}
+              onLink={(experienceId, entryId) => setDoc((current) => saveExperience(current, { id: experienceId, entryId }).document)}
+              onDelete={(ids) => setDoc((current) => deleteExperiences(current, ids))}
+            />
+          ) : route.tab === 'sections' ? (
+            <Library
+              key={libraryKey}
+              sections={doc.sections}
+              roleGraphs={doc.roleGraphs}
+              bank={doc.bank}
+              jobs={doc.profile.jobs}
+              onChange={changeSections}
+              onChangeRoles={changeRoleGraphs}
+              views={sectionsView(doc)}
+            />
+          ) : (
+            <PersonalData profile={doc.profile} onProfile={updateProfile} />
           )}
-          onLink={(experienceId, entryId) => setDoc((current) => saveExperience(current, { id: experienceId, entryId }).document)}
-          onDelete={(ids) => setDoc((current) => deleteExperiences(current, ids))}
-        />
-      ) : !inWorkspace && homeSection === 'library' ? (
-        <Library
-          key={libraryKey}
-          sections={doc.sections}
-          roleGraphs={doc.roleGraphs}
-          bank={doc.bank}
-          jobs={doc.profile.jobs}
-          onChange={changeSections}
-          onChangeRoles={changeRoleGraphs}
-          views={sectionsView(doc)}
-        />
+        </ProfilePage>
       ) : !inWorkspace ? (
-        <Home
-          cvs={doc.cvs}
-          bank={doc.bank}
-          knowledge={doc.knowledge}
-          section={homeSection === 'personal' ? 'personal' : 'projects'}
-          composerOpen={composerOpen}
-          composerSeed={cvSeed}
-          onComposerOpenChange={(open) => (open ? setComposerOpen(true) : closeComposer())}
-          profile={doc.profile}
-          onProfile={updateProfile}
+        <MyCvs
+          doc={doc}
           onOpen={openCv}
-          onCreate={createCv}
+          onOpenApplication={openApplicationCv}
+          onCreate={createGeneralCv}
+          onFromPosting={() => setWizard({ seed: null })}
+          onCopy={(cvId) => setDoc((current) => copyCv(current, cvId).document)}
+          onRename={(cvId, title) => setDoc((current) => ({ ...current, cvs: current.cvs.map((item) => (item.id === cvId ? { ...item, title } : item)) }))}
           onDelete={deleteCv}
+          onMakeGeneral={(cvId) => setDoc((current) => assignCv(current, cvId, null))}
+          assistant={assistantHint}
         />
       ) : inEditor && draft ? (
         <>
@@ -1095,35 +1226,15 @@ export default function App({ initialDocument, store, account, notice, assistant
             selectedVersionId={selectedVersionId}
             onSelectVersion={setSelectedVersionId}
             onSaveVersion={saveVersion}
-            onBack={() => {
-              setHomeSection('projects')
-              setScreen('home')
-            }}
+            onBack={() => navigate({ page: 'cvs' })}
             onGraph={() => {
               setSelectedVersionId(null)
               setEditorMode('graph')
             }}
-            assistant={assistant ? { connected: assistantConnected, onConnect: () => setAssistantOpen(true) } : undefined}
+            basedOnTitle={basedOnTitle}
+            assistant={assistantHint}
           />
-          {editorShown ? (
-            <div className="print-source" aria-hidden="true">
-              <ResumePreview
-                snapshot={editorShown}
-                templateId={cv.templateId}
-                fontId={cv.fontId}
-                fontSize={cv.fontSize}
-                lineHeight={cv.lineHeight}
-                marginId={cv.marginId}
-                pageSize={cv.pageSize}
-                skillsFormat={cv.skillsFormat ?? 'list'}
-                accentColor={cv.accentColor}
-                sectionOrder={cv.sectionOrder}
-                enabledSections={cv.enabledSections}
-                sections={doc.sections}
-                blocks={editorShown.blocks ?? []}
-              />
-            </div>
-          ) : null}
+          {printSource}
         </>
       ) : (
       <>
@@ -1190,6 +1301,9 @@ export default function App({ initialDocument, store, account, notice, assistant
       </>
       )}
       </div>
+      {wizard ? (
+        <NewCvWizard bank={doc.bank} knowledge={doc.knowledge} seed={wizard.seed} onClose={() => setWizard(null)} onCreate={createCv} />
+      ) : null}
       {assistant && assistantOpen ? (
         <ConnectAssistant
           mcpUrl={assistant.mcpUrl}

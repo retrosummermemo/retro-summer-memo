@@ -1,0 +1,598 @@
+/* "Mis CVs": general CVs as cards with a live thumbnail, application CVs as rows. */
+
+.cvs-home {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.cvs-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.cvs-head > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.cvs-head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cvs-head p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: #59636e;
+  line-height: 1.5;
+}
+
+.cvs-head em {
+  color: #1f2328;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.cvs-head-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.cvs-head-actions .button {
+  height: 34px;
+  padding: 0 14px;
+  font-weight: 550;
+}
+
+.cvs-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: #59636e;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cvs-group h2 span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eaeef2;
+  color: #59636e;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.cvs-note {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed #d0d7de;
+  border-radius: 10px;
+  color: #59636e;
+}
+
+/* General CVs */
+
+.cvs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid #d8dee4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(31, 35, 40, 0.04);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.cv-card:hover {
+  border-color: #c5ccd3;
+  box-shadow: 0 8px 24px rgba(31, 35, 40, 0.1);
+  transform: translateY(-1px);
+}
+
+.cv-card-thumb {
+  position: relative;
+  display: block;
+  height: 214px;
+  padding: 16px 18px 0;
+  overflow: hidden;
+  border-bottom: 1px solid #eef0f3;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, #eef1f4, #f6f8fa);
+  cursor: pointer;
+}
+
+.cv-paper {
+  display: block;
+  height: 100%;
+  /* Inside a button: the CV keeps its own alignment and spacing. */
+  text-align: left;
+  white-space: normal;
+  line-height: normal;
+  overflow: hidden;
+  border-radius: 3px 3px 0 0;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.14), 0 6px 16px rgba(31, 35, 40, 0.06);
+  pointer-events: none;
+}
+
+/* The thumbnail is the real CV, fitted to the card: no page shadows or gaps of its own. */
+.cv-paper .sheet-stack {
+  gap: 0 !important;
+}
+
+.cv-paper .resume-page {
+  box-shadow: none !important;
+}
+
+.cv-card-open {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translate(-50%, 6px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #1f2328;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.cv-card:hover .cv-card-open {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.cv-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px 14px;
+}
+
+.cv-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cv-card-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2328;
+  font-size: 15px;
+  font-weight: 650;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-card-name:hover {
+  color: #0969da;
+}
+
+.cv-card-rename {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cv-card-menu {
+  position: relative;
+  flex: none;
+}
+
+.cv-card-more {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #59636e;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.cv-card-more:hover,
+.cv-card-more[aria-expanded='true'] {
+  background: #f3f4f6;
+  color: #1f2328;
+}
+
+.cv-card-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid #d8dee4;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(31, 35, 40, 0.16);
+}
+
+.cv-card-popover > button {
+  white-space: nowrap;
+  padding: 7px 10px;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.cv-card-popover > button:hover {
+  background: #f3f4f6;
+}
+
+.cv-card-popover > button.is-danger {
+  color: #cf222e;
+}
+
+.cv-card-popover.is-confirm {
+  width: 260px;
+  padding: 12px;
+  gap: 10px;
+}
+
+.cv-card-popover.is-confirm p {
+  margin: 0;
+  color: #3d444d;
+  line-height: 1.45;
+}
+
+.cv-card-popover.is-confirm div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cv-card-target {
+  margin: 0;
+  overflow: hidden;
+  color: #59636e;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+  color: #8c959f;
+  font-size: 12px;
+}
+
+.cv-card-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #3d444d;
+  font-weight: 600;
+}
+
+.cv-card-score .score-ring-number {
+  font-size: 9.5px;
+}
+
+.cv-card-copies {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fff1e5;
+  color: #a4400a;
+  font-weight: 600;
+}
+
+.cvs-new-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  border: 1.5px dashed #c5ccd3;
+  border-radius: 12px;
+  color: #3d444d;
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.cvs-new-card span {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: #fff1e5;
+  color: #e8590c;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.cvs-new-card small {
+  color: #8c959f;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.cvs-new-card:hover {
+  border-color: #e8590c;
+  background: #fffaf5;
+}
+
+/* Application CVs */
+
+.cvs-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d8dee4;
+  border-radius: 12px;
+  background: #fff;
+  list-style: none;
+}
+
+.cvs-rows li:first-child {
+  border-radius: 12px 12px 0 0;
+}
+
+.cvs-rows li:last-child {
+  border-radius: 0 0 12px 12px;
+}
+
+.cvs-rows li:only-child {
+  border-radius: 12px;
+}
+
+.cvs-row-item:hover {
+  background: #f8f9fb;
+}
+
+.cvs-rows li + li {
+  border-top: 1px solid #eef0f3;
+}
+
+.cvs-row-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cvs-row-item .cv-card-menu {
+  margin-right: 12px;
+}
+
+.cvs-row {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  grid-template-columns: 36px minmax(160px, 1.2fr) 170px minmax(160px, 1fr) 150px 30px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.cvs-row-main,
+.cvs-row-cv {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cvs-row-main strong,
+.cvs-row-main span,
+.cvs-row-cv span,
+.cvs-row-cv small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cvs-row-main span,
+.cvs-row-cv small {
+  color: #59636e;
+  font-size: 12.5px;
+}
+
+.cvs-row-cv span {
+  font-weight: 550;
+}
+
+.cvs-row-sent {
+  color: #59636e;
+  font-size: 12.5px;
+}
+
+.cvs-row .score-ring-number {
+  font-size: 10px;
+}
+
+/* No CV yet */
+
+.cvs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 520px;
+  margin: 24px auto;
+  padding: 36px 32px;
+  border: 1px solid #d8dee4;
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.cvs-empty h2 {
+  margin: 6px 0 0;
+  font-size: 18px;
+}
+
+.cvs-empty p {
+  margin: 0 0 6px;
+  color: #59636e;
+  line-height: 1.5;
+}
+
+.cvs-empty-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 64px;
+  height: 82px;
+  padding: 12px 10px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.16), 0 8px 20px rgba(232, 89, 12, 0.14);
+}
+
+.cvs-empty-sheet i {
+  height: 5px;
+  border-radius: 3px;
+  background: #eaeef2;
+}
+
+.cvs-empty-sheet i:first-child {
+  width: 70%;
+  height: 7px;
+  background: #e8590c;
+}
+
+/* New CV dialog */
+
+.cvs-new {
+  width: min(560px, 100%);
+  padding: 20px;
+}
+
+.cvs-new-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cvs-new-fields input {
+  height: 36px;
+}
+
+.cvs-new-start {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.cvs-new-start legend {
+  margin-bottom: 8px;
+  color: #59636e;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cvs-start {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #d8dee4;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.cvs-start:hover {
+  border-color: #c5ccd3;
+}
+
+.cvs-start.is-on {
+  border-color: #e8590c;
+  background: #fffaf5;
+  box-shadow: 0 0 0 3px rgba(232, 89, 12, 0.1);
+}
+
+.cvs-start input {
+  margin-top: 3px;
+  accent-color: #e8590c;
+}
+
+.cvs-start > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cvs-start small {
+  color: #59636e;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.cvs-start select {
+  margin-top: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #fff;
+}
+
+@media (max-width: 960px) {
+  .cvs-head {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cvs-row {
+    grid-template-columns: 36px minmax(0, 1fr) 30px;
+  }
+
+  .cvs-row > .status-pill,
+  .cvs-row-cv,
+  .cvs-row-sent {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .cvs-new-fields {
+    grid-template-columns: 1fr;
+  }
+}

@@ -145,7 +145,8 @@ export function sampleDocument(): ResumeDocument {
     profile,
     nodes,
     edges,
-    cvs: [mainCv, { ...backendCv, extra: { language: 'en' } }],
+    // The Backend CV is the one made for the Acme application, copied from the main one.
+    cvs: [mainCv, { ...backendCv, applicationId: acmeWithExtras.id, basedOn: mainCv.id, extra: { language: 'en' } }],
     activeCvId: mainCv.id,
     bank: seed.bank.map((item, index) => (index === 0 ? { ...item, entryId: 'job-1-r1', extra: { metric: '-40% latency' } } : item)),
     sections: seed.sections.map((section) =>

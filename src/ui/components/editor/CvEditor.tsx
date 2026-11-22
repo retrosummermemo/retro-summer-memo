@@ -2,6 +2,7 @@ import './editor.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type Dispatch, type SetStateAction } from 'react'
 import { analyzeCv } from '../../../domain/cvAnalysis'
 import { cvOutline, type CvGraph } from '../../../domain/cvEditing'
+import type { Application } from '../../../domain/applications'
 import type { Cv, ResumeDocument, Snapshot } from '../../../domain/model'
 import { downloadDoc, downloadPdf } from '../../download'
 import type { SaveStatus } from '../../useDocumentSync'
@@ -70,8 +71,14 @@ type CvEditorProps = {
   selectedVersionId: string | null
   onSelectVersion: (id: string | null) => void
   onSaveVersion: () => void
-  onBack: () => void
+  /** Back to the CV list; none when the editor sits inside another page (an application). */
+  onBack?: () => void
   onGraph: () => void
+  /** The application this CV was made for: its versions can be marked as the one sent there. */
+  application?: Application
+  onMarkSent?: (versionId: string) => void
+  /** The CV it was copied from. */
+  basedOnTitle?: string
   assistant?: { connected: boolean; onConnect: () => void }
 }
 
@@ -91,6 +98,9 @@ export function CvEditor({
   onSaveVersion,
   onBack,
   onGraph,
+  application,
+  onMarkSent,
+  basedOnTitle,
   assistant,
 }: CvEditorProps) {
   const [panel, setPanelId] = useState<PanelId>(loadPanel)
@@ -206,6 +216,8 @@ export function CvEditor({
     endReview: () => setReview(null),
     selectedVersionId: version ? version.id : null,
     selectVersion: onSelectVersion,
+    application,
+    markSent: onMarkSent,
     assistant,
   }
 
@@ -217,12 +229,14 @@ export function CvEditor({
   }
 
   return (
-    <div className="cv-editor">
+    <div className={onBack ? 'cv-editor' : 'cv-editor is-embedded'}>
       <header className="cv-editor-top">
-        <button type="button" className="cv-editor-back" onClick={onBack} title="Volver a tus CVs">
-          <ArrowLeftIcon size={18} />
-          <span>CVs</span>
-        </button>
+        {onBack ? (
+          <button type="button" className="cv-editor-back" onClick={onBack} title="Volver a tus CVs">
+            <ArrowLeftIcon size={18} />
+            <span>CVs</span>
+          </button>
+        ) : null}
         <div className="cv-editor-identity">
           <input
             className="cv-editor-name"
@@ -231,9 +245,16 @@ export function CvEditor({
             placeholder="Sin título"
             onChange={(event) => api.patchCv({ title: event.target.value })}
           />
-          <button type="button" className="cv-editor-target" onClick={() => setPanel('posting')}>
-            {[cv.position.trim(), cv.company.trim()].filter(Boolean).join(' · ') || 'Elegí el puesto al que apunta'}
-          </button>
+          <span className="cv-editor-subline">
+            <button type="button" className="cv-editor-target" onClick={() => setPanel('posting')}>
+              {[cv.position.trim(), cv.company.trim()].filter(Boolean).join(' · ') || 'Elegí el puesto al que apunta'}
+            </button>
+            {basedOnTitle ? (
+              <span className="cv-editor-based" title="Es una copia: cambiar el original no la toca">
+                Copia de {basedOnTitle}
+              </span>
+            ) : null}
+          </span>
         </div>
         <SaveIndicator status={saveStatus} onRetry={onRetrySave} />
         <button type="button" className="cv-editor-score" onClick={() => setPanel('analysis')} title="Ver el análisis">

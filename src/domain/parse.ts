@@ -130,6 +130,14 @@ export function readStyle(
   }
 }
 
+/** Which application a CV was made for and which CV it was copied from, when stored. */
+export function readOwner(value: Record<string, unknown>): Pick<Cv, 'applicationId' | 'basedOn'> {
+  return {
+    ...(typeof value.applicationId === 'string' && value.applicationId ? { applicationId: value.applicationId } : {}),
+    ...(typeof value.basedOn === 'string' && value.basedOn ? { basedOn: value.basedOn } : {}),
+  }
+}
+
 type DraftCv = {
   cv: Omit<Cv, 'nodes' | 'edges'>
   graph?: { nodes: ResumeNode[]; edges: ResumeEdge[] }
@@ -156,6 +164,7 @@ function legacyCv(value: Record<string, unknown>): DraftCv {
 const cvKeys = [
   'id', 'title', 'position', 'company', 'posting', 'summary', 'templateId', 'fontId', 'fontSize', 'lineHeight',
   'marginId', 'pageSize', 'skillsFormat', 'accentColor', 'sectionOrder', 'enabledSections', 'versions', 'nodes', 'edges', 'graph',
+  'applicationId', 'basedOn',
 ]
 
 function parseCv(value: unknown): DraftCv[] {
@@ -173,6 +182,7 @@ function parseCv(value: unknown): DraftCv[] {
       ...readStyle(value),
       enabledSections: readEnabled(value.enabledSections),
       versions,
+      ...readOwner(value),
     }, readExtra(value, cvKeys)),
     graph: readStoredGraph(value),
   }]

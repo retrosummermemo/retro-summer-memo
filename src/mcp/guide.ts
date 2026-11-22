@@ -13,14 +13,16 @@ How it is organized (call describe_model for the details):
 - Profile: name and contact fields.
 - Sections → entries: Experience (entries are roles: title = role, subtitle = company), Education (title = degree, subtitle = school), Projects, and any section the user wants (Certificaciones, Idiomas…). One CRUD for all: list_sections, save_section, save_entry, delete_entry.
 - Experiences: concrete achievements (one CV bullet each), each linked to the entry where it happened (entry_id), with skills and a level. save_experience, delete_experiences, set_experience_levels. import_career saves many at once.
-- CVs: a selection of experiences/entries/sections built by build_cv. Applications: the job search tracker, from "Analizando propuesta" (a posting they are weighing) to an offer.
+- CVs: a selection of experiences/entries/sections built by build_cv. General CVs are one per role or profile ("CV React", "CV Arquitecto"): the starting points. Each application can have its own CV, a copy of a general one tailored to its posting (copy_cv with application_id). list_cvs shows both.
+- Applications: the job search tracker, from "Analizando propuesta" (a posting they are weighing) to an offer.
 - Companies: what the user knows about each company they apply to (about, mission, vision, values, dated notes: news, layoffs, hiring, other openings, others' interviews…), matched to applications by name. Debriefs: how each step of an application went, in the user's words.
 
 Typical requests:
 - Onboarding ("Preparemos mi Resume", an empty account, or get_started says so): follow onboarding_guide. Ask for old CVs, a LinkedIn PDF export or a portfolio first; read them and load everything with import_career; then interview them role by role for achievements with numbers. Voice notes and long stories are welcome: turn them into achievements.
 - "Actualizá mi info en Resume": gather what you know about the user (conversation, memory, CVs or files they share) and load it with import_career (roles, studies, projects, each with its achievements). One achievement per experience, with numbers when the user gave them. Summarize what you will write first.
 - A job posting link (alone, or "mirá esto"): read it (if the site needs a login, ask them to paste the text), check_duplicates, then create_application with stage "considering" and the full posting text: it lands in "Analizando propuesta" and comes back with how it fits their experience. Research the company (get_company, save_company, save_company_note). Give a short take and ask: apply or discard?
-- "Armemos el CV para <link>" (or they decide to apply): the same, then read cv_guidelines and build_cv with application_id, the posting text and a tailored summary. Fix what build_cv's review points out, rebuild, and only then show the user. Once they send it, move_application to the first step (it records the day they applied).
+- "Armemos el CV para <link>" (or they decide to apply): the same, then read cv_guidelines and list_cvs. Start from the general CV that fits the role best: copy_cv it with application_id (with no general CV, build_cv with application_id). Tailor the copy to the posting: build_cv with its cv_id, the experiences that prove what they ask for and a tailored summary. Fix what the review points out, rebuild, and only then show the user (the app shows it in the application's CV tab). Once they send it, build_cv_version with pin_to_application_id and move_application to the first step (it records the day they applied).
+- "Haceme un CV para roles de React" / "un CV de arquitecto": a general CV, no application: build_cv with that title ("CV React") and the experiences that fit the role, or copy_cv from another general CV and adjust it.
 - "Me postulé a X": create_application with stage "applied" (applied_on: their local date when known).
 - News about a process ("Me confirmaron de X, paso al challenge el 20/3", "Mañana tengo call con RRHH de X"): search_applications, move_application when the step changed, and schedule_step for what is coming up (resolve "mañana" or "el jueves" with today's date from get_started; ask the time if it matters).
 - How a step went ("Recién salí de la call con RRHH de X: me preguntaron…"): save_debrief on that application and step: how it went, rating, who was there, what they asked, what the user said and did not say, what they liked, their doubts. Ask only for what matters and is missing. If they moved on, move_application too.
@@ -51,15 +53,21 @@ experiences (the "bank"): [{ id, text, entry_id, skills, category, level, extra 
   level (set_experience_levels): profesional | personal | sin experiencia.
   Experiences without entry_id cannot be placed on a CV.
 
-cvs: tailored CVs built from a selection                                                  (build_cv / update_cv / build_cv_version / delete_cv)
+cvs: CVs built from a selection                                      (list_cvs / build_cv / copy_cv / update_cv / build_cv_version / delete_cv)
+  { id, title, position, company, posting, summary, style…, applicationId, basedOn, versions }
+  General CVs (no applicationId): one per role or profile, "CV React", "CV Arquitecto". An application's CV
+  (applicationId): a copy of a general CV tailored to that posting; one per application. basedOn: the CV it was copied
+  from. Copies are independent: changing the original does not touch them. A CV whose application is deleted is general again.
   build_cv takes experience_ids (+ optional entry_ids, section_ids, summary, posting, style) and lays everything
   out: roles in profile order with their experiences, education, then other sections. Never edit CV graphs by hand.
   Each build saves a version (what the user reviews and downloads) and returns an outline and a review.
+  copy_cv copies a CV as a new general one or as the CV of an application. update_cv application_id moves a CV.
   update_cv sets the look: template (classic, modern: single column; timeline, sidebar), font, size, spacing,
   margins, paper, skills format, accent color and the order of the sections.
 
 applications: the job search                     (create_application / move_application / schedule_step / add_note / update_application / delete_application)
   { id, company, title, url, posting, location, appliedOn, statusId, attachment, events, extra }
+  attachment: the CV sent ({ kind: "cv", cvId, versionId }; versionId "" = its latest version until one is pinned).
   create_application stage: "considering" = a posting the user is weighing (step "Analizando propuesta", no applied date);
   "applied" = they sent it (first open step). Leaving the considering step for an open one sets appliedOn.
   events: history in date order. kind "status" (moved), "note", or anything else ("interview", "call"…);

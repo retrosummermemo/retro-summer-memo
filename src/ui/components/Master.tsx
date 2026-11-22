@@ -116,12 +116,10 @@ export function ExperienceMaster({ bank, answers, onAnswer, onApplyAnswers, onBa
   return (
     <div className="home">
       <div className="home-head knowledge-head">
-        <div>
-          <h1>Experiencia</h1>
-          <p className="knowledge-lede">
-            Tu inventario master para los CVs. Marcá niveles acá o respondé preguntas para completarlo más rápido.
-          </p>
-        </div>
+        <p className="profile-lede">
+          Cada logro es una línea de CV, ligada al trabajo o proyecto donde pasó. Tus CVs eligen de acá. Marcá niveles o respondé
+          preguntas para completarlo más rápido.
+        </p>
         <button type="button" className="button primary" onClick={() => setTest(true)}>
           Responder preguntas
         </button>

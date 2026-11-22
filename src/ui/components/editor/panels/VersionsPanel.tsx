@@ -3,14 +3,18 @@ import type { EditorApi } from '../editorApi'
 
 /** Fixed copies of the CV: what was sent where, and the draft against the last one. */
 export function VersionsPanel({ api, dirty }: { api: EditorApi; dirty: boolean }) {
-  const { cv, doc, selectedVersionId, selectVersion } = api
+  const { cv, doc, selectedVersionId, selectVersion, application, markSent } = api
   const latest = cv.versions.at(-1)
+  const own = application?.attachment?.kind === 'cv' && application.attachment.cvId === cv.id ? application.attachment : null
+  const pinned = own?.versionId || null
   const sent = (versionId: string) =>
     doc.applications.filter(
       (application) =>
         application.attachment?.kind === 'cv' &&
         application.attachment.cvId === cv.id &&
-        (application.attachment.versionId === versionId || (application.attachment.versionId === '' && versionId === latest?.id)),
+        (application.attachment.versionId === versionId ||
+          // Unpinned, the latest version is the one that goes; for this CV's own application it is not sent yet.
+          (application.attachment.versionId === '' && versionId === latest?.id && application.id !== api.application?.id)),
     )
 
   return (
@@ -55,16 +59,25 @@ export function VersionsPanel({ api, dirty }: { api: EditorApi; dirty: boolean }
                   </span>
                 ) : null}
               </div>
-              <button type="button" className={showing ? 'button is-on' : 'button'} onClick={() => selectVersion(showing ? null : version.id)}>
-                {showing ? 'Viendo' : 'Ver'}
-              </button>
+              <div className="cv-version-actions">
+                <button type="button" className={showing ? 'button is-on' : 'button'} onClick={() => selectVersion(showing ? null : version.id)}>
+                  {showing ? 'Viendo' : 'Ver'}
+                </button>
+                {application && markSent && pinned !== version.id ? (
+                  <button type="button" className="link-button" onClick={() => markSent(version.id)}>
+                    Es la que mandé
+                  </button>
+                ) : null}
+              </div>
             </li>
           )
         })}
       </ol>
 
       <p className="cv-note">
-        Cada versión queda fija: es exactamente lo que mandaste. Al cargar una postulación, elegí la versión que enviaste y siempre vas a saber qué recibieron.
+        {application
+          ? `Cada versión queda fija. Cuando mandes el CV a ${application.company || 'la empresa'}, marcá cuál fue y siempre vas a saber qué recibieron.`
+          : 'Cada versión queda fija: es exactamente lo que mandaste. Al cargar una postulación, elegí la versión que enviaste y siempre vas a saber qué recibieron.'}
       </p>
     </div>
   )

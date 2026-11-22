@@ -3,21 +3,64 @@
   "redirects": [
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "www.retro-summer-memo.com" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "www.retro-summer-memo.com"
+        }
+      ],
       "destination": "https://retro-summer-memo.com/",
       "permanent": true
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.retro-summer-memo.com" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "www.retro-summer-memo.com"
+        }
+      ],
       "destination": "https://retro-summer-memo.com/:path*",
       "permanent": true
     }
   ],
   "rewrites": [
-    { "source": "/oauth/consent", "destination": "/index.html" },
-    { "source": "/mcp", "destination": "https://attrxmtjyjzfgopfrgnk.supabase.co/functions/v1/mcp/_site" },
-    { "source": "/mcp/:path*", "destination": "https://attrxmtjyjzfgopfrgnk.supabase.co/functions/v1/mcp/_site/:path*" },
+    {
+      "source": "/oauth/consent",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/postulaciones",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/postulaciones/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/cvs",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/cvs/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/perfil",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/perfil/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/mcp",
+      "destination": "https://attrxmtjyjzfgopfrgnk.supabase.co/functions/v1/mcp/_site"
+    },
+    {
+      "source": "/mcp/:path*",
+      "destination": "https://attrxmtjyjzfgopfrgnk.supabase.co/functions/v1/mcp/_site/:path*"
+    },
     {
       "source": "/.well-known/oauth-protected-resource/mcp",
       "destination": "https://attrxmtjyjzfgopfrgnk.supabase.co/functions/v1/mcp/_site/oauth-protected-resource"

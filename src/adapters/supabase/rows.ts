@@ -12,7 +12,7 @@ import {
 import { readCompanies, type Company } from '../../domain/companies'
 import { readExperiences } from '../../domain/experiences'
 import type { Cv, CvVersion, KnowledgeAnswer, ResumeDocument, ResumeEdge, ResumeNode } from '../../domain/model'
-import { parseGraph, parseProfile, parseRoleGraph, parseSnapshot, readEnabled, readSections, readStyle } from '../../domain/parse'
+import { parseGraph, parseProfile, parseRoleGraph, parseSnapshot, readEnabled, readOwner, readSections, readStyle } from '../../domain/parse'
 import { isTemplateId } from '../../domain/templates'
 
 /** In write order: parents before children. */
@@ -42,7 +42,7 @@ export const COLUMNS: Record<TableName, string> = {
   experiences: 'id,category,text,skills,aliases,entry_id,level,sort,extra',
   sections: 'id,name,description,active,built_in,entries,sort,extra',
   role_templates: 'id,graph,sort',
-  cvs: 'id,title,target_role,target_company,posting,summary,style,enabled_sections,graph,sort,extra',
+  cvs: 'id,title,target_role,target_company,posting,summary,style,enabled_sections,graph,application_id,based_on,sort,extra',
   cv_versions: 'id,cv_id,created_at,snapshot,sort',
   application_statuses: 'id,name,color,kind,sort,extra',
   applications: 'id,company,title,url,posting_key,posting,location,applied_on,status_id,attachment,created_at,updated_at,extra',
@@ -178,6 +178,8 @@ function cvRow(cv: Cv, document: ResumeDocument, sort: number): Row {
     },
     enabled_sections: cv.enabledSections,
     graph: graphJson(live ? document.nodes : cv.nodes, live ? document.edges : cv.edges),
+    application_id: cv.applicationId ?? null,
+    based_on: cv.basedOn ?? null,
     sort,
     extra: cv.extra ?? {},
   }
@@ -280,6 +282,7 @@ export function fromTables(tables: Tables, previous?: ResumeDocument): ResumeDoc
       versions,
       nodes: graph.nodes,
       edges: graph.edges,
+      ...readOwner({ applicationId: row.application_id, basedOn: row.based_on }),
       ...(isRecord(row.extra) && Object.keys(row.extra).length > 0 ? { extra: row.extra } : {}),
     }
   })

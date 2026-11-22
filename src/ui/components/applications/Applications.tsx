@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 import {
   STALE_DAYS,
   countByStatus,
@@ -19,8 +19,10 @@ import {
   type ApplicationStatus,
 } from '../../../domain/applications'
 import { companyOf, deleteCompany, deleteCompanyNote, saveCompany, saveCompanyNote, type Company } from '../../../domain/companies'
+import { shownCvOfApplication } from '../../../domain/cvLibrary'
 import type { Cv, ResumeDocument } from '../../../domain/model'
 import { formatDateTime, formatDay, relativeTime, todayYmd } from '../../format'
+import type { ApplicationTab } from '../../routes'
 import { CompanyLogo } from '../companies/CompanyLogo'
 import { ApplicationPage, type CompanyActions } from './ApplicationPage'
 import { ApplicationForm, type ApplicationFormValues } from './ApplicationForm'
@@ -38,9 +40,12 @@ type ApplicationsProps = {
   companies: Company[]
   cvs: Cv[]
   onChange: (update: (current: TrackerData) => TrackerData) => void
-  onOpenCv: (cvId: string, versionId: string) => void
-  /** Opens the CV composer for this application; the new CV gets attached to it. */
-  onBuildCv: (application: Application) => void
+  /** The application open as a page (from the URL), and its tab. */
+  selectedId: string | null
+  tab: ApplicationTab
+  onSelect: (id: string | null, tab?: ApplicationTab) => void
+  /** The CV tab of an application: its CV in the editor, or how to make one. */
+  renderCv: (application: Application) => ReactNode
   /** Assistants connected through the MCP: the requests to make to them are suggested. */
   assistant?: { connected: boolean; onConnect: () => void }
 }
@@ -81,10 +86,9 @@ function loadQuery(): ApplicationQuery {
   return defaultQuery()
 }
 
-export function Applications({ applications, statuses, companies, cvs, onChange, onOpenCv, onBuildCv, assistant }: ApplicationsProps) {
+export function Applications({ applications, statuses, companies, cvs, onChange, selectedId, tab, onSelect, renderCv, assistant }: ApplicationsProps) {
   const [query, setQuery] = useState<ApplicationQuery>(loadQuery)
   const [view, setView] = useState<ViewMode>(loadView)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(null)
   const [editingStatuses, setEditingStatuses] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -116,13 +120,13 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
       } else if (event.key === 'n') {
         event.preventDefault()
         setForm({ mode: 'new' })
-      } else if (event.key === 'Escape') {
-        setSelectedId(null)
+      } else if (event.key === 'Escape' && tab !== 'cv') {
+        onSelect(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [form, editingStatuses])
+  }, [form, editingStatuses, tab, onSelect])
 
   const now = useNow()
   const statusById = useMemo(() => new Map(statuses.map((status) => [status.id, status])), [statuses])
@@ -162,7 +166,7 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
 
   function remove(id: string) {
     onChange((current) => ({ ...current, applications: current.applications.filter((application) => application.id !== id) }))
-    setSelectedId(null)
+    onSelect(null)
   }
 
   /**
@@ -211,13 +215,12 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
     const created = createApplication(values, statuses)
     onChange((current) => ({ ...current, applications: [created, ...current.applications] }))
     setForm(null)
-    setSelectedId(created.id)
-    if (options.buildCv) onBuildCv(created)
+    onSelect(created.id, options.buildCv ? 'cv' : 'process')
   }
 
   if (selected) {
     return (
-      <div className="home tracker">
+      <div className={tab === 'cv' ? 'home tracker is-cv' : 'home tracker'}>
         <ApplicationPage
           key={selected.id}
           application={selected}
@@ -230,10 +233,11 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
           company={companyActions}
           onDelete={() => remove(selected.id)}
           onEdit={() => setForm({ mode: 'edit', id: selected.id })}
-          onClose={() => setSelectedId(null)}
-          onSelect={setSelectedId}
-          onOpenCv={onOpenCv}
-          onBuildCv={() => onBuildCv(selected)}
+          onClose={() => onSelect(null)}
+          onSelect={(id) => onSelect(id)}
+          tab={tab}
+          onTab={(next) => onSelect(selected.id, next)}
+          cvTab={tab === 'cv' ? renderCv(selected) : null}
           assistant={assistant}
         />
         {form ? (
@@ -246,7 +250,7 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
             onCancel={() => setForm(null)}
             onOpen={(id) => {
               setForm(null)
-              setSelectedId(id)
+              onSelect(id)
             }}
           />
         ) : null}
@@ -376,7 +380,7 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
                   cvs={cvs}
                   selectedId={selectedId}
                   now={now}
-                  onSelect={setSelectedId}
+                  onSelect={(id) => onSelect(id)}
                   onMove={move}
                 />
               ) : (
@@ -392,7 +396,7 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
                   companies={companies}
                   selectedId={selectedId}
                   now={now}
-                  onSelect={setSelectedId}
+                  onSelect={(id) => onSelect(id)}
                   onMove={move}
                 />
               )}
@@ -411,7 +415,7 @@ export function Applications({ applications, statuses, companies, cvs, onChange,
           onCancel={() => setForm(null)}
           onOpen={(id) => {
             setForm(null)
-            setSelectedId(id)
+            onSelect(id)
           }}
         />
       ) : null}
@@ -478,7 +482,6 @@ function ApplicationList({
   onSelect,
   onMove,
 }: ResultsProps & { statuses: ApplicationStatus[]; cvs: Cv[] }) {
-  const cvById = new Map(cvs.map((cv) => [cv.id, cv]))
   return (
     <table className="tracker-table">
       <thead>
@@ -495,7 +498,7 @@ function ApplicationList({
           const on = application.appliedOn || application.createdAt
           // A posting still being weighed has not been applied to yet.
           const notYet = !application.appliedOn && statusById.get(application.statusId)?.kind === 'considering'
-          const cv = application.attachment?.kind === 'cv' ? cvById.get(application.attachment.cvId) : undefined
+          const cv = shownCvOfApplication({ cvs }, application)
           return (
             <tr
               key={application.id}

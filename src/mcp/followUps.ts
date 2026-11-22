@@ -59,7 +59,7 @@ export function startingPoints(setup: Setup, agenda: Agenda, now: Date, limit = 
     points.push(`No news for ${STALE_DAYS}+ days from ${agenda.stale.slice(0, 3).map((item) => item.company).join(', ')}: ask whether anything happened (move_application, schedule_step) or close them.`)
   }
   if (setup.mode === 'ready' && setup.checks.find((check) => check.key === 'cv' && !check.done)) {
-    points.push('No CV yet: offer one for a posting they like, or a general one to start from.')
+    points.push('No CV yet: offer a general one for the role they aim at ("CV React"), the starting point for each application.')
   }
   return points.slice(0, limit)
 }
@@ -75,9 +75,9 @@ export function afterCreate({ considering, fit, hasPosting, companySaved }: { co
         'Give the user a short take on the posting: what fits (fit.backed_by_experience and fit.closest_experiences, their real achievements), the gaps (fit.not_in_experience: talk about them, never put them on a CV without the user confirming), seniority, modality and salary if stated, anything odd.',
       )
     }
-    steps.push('Then ask what they want: apply (build_cv with the closest experiences, then move_application to the first step once sent) or discard it (move_application to the withdrawn step, with the reason as note).')
+    steps.push('Then ask what they want: apply (its CV: copy_cv from the general CV that fits best with application_id, tailor it with build_cv; then move_application to the first step once sent) or discard it (move_application to the withdrawn step, with the reason as note).')
   } else {
-    steps.push('Offer a CV tailored to this posting if they did not send one built here (build_cv), and ask whether there is a next step or a date already (schedule_step).')
+    steps.push('Offer a CV tailored to this posting if they did not send one built here (copy_cv from a general CV with application_id), and ask whether there is a next step or a date already (schedule_step).')
   }
   if (!companySaved) steps.push('Nothing saved about this company yet: research it and save what you find (save_company, save_company_note with dates and sources).')
   return steps

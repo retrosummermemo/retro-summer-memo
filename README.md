@@ -1,28 +1,43 @@
 # CV builder + job applications tracker
 
-Build tailored CVs in a visual editor (the CV live on a canvas, with panels for its content,
-sections, design, an analysis with a score, the target posting and fixed versions), and track
-every application you send:
-which CV (exact version) went where, what step each process is in, and whether you already
-applied to that posting or role before. Each application opens as a page with the process step by
-step (how each call or interview went: what they asked, what you said and did not say, what they
-liked) next to everything known about the company: logo, what it does, mission, vision, values,
-and dated notes on news, layoffs, hiring, other openings and how others' interviews went.
+Three sections: **Postulaciones**, **Mis CVs** and **Mi perfil**, each with its own URL.
+
+- **Mis CVs**: general CVs, one per role or profile ("CV React", "CV Arquitecto"), made from the
+  whole profile, from another CV or from scratch. Each is edited in a visual editor (the CV live on
+  a canvas, with panels for its content, sections, design, an analysis with a score, the target
+  posting and fixed versions).
+- **Postulaciones**: every application you send, what step each process is in, and whether you
+  already applied to that posting or role before. Each application is a page with three tabs: the
+  process step by step (how each call or interview went: what they asked, what you said and did not
+  say, what they liked), **its own CV** (a copy of one of your general CVs, tailored to that posting
+  in the same editor, with the exact version you sent), and everything known about the company:
+  logo, what it does, mission, vision, values, and dated notes on news, layoffs, hiring, other
+  openings and how others' interviews went.
+- **Mi perfil**: your data and career, your achievements (one CV line each) and the CV sections:
+  what every CV is made from, entered once.
 
 It is driven by your assistant (ChatGPT, Claude, Gemini…) through an MCP server: "Preparemos mi
 Resume", a bare posting link, "Armemos el CV para <link>", "Mañana tengo call con RRHH de Acme",
 "Recién salí de la call con RRHH, te cuento…", "Investigá Acme". The app is the engine and the
 viewer, and shows the assistant's changes live.
 
-| Applications | The CV editor: click any part of the page to edit it |
+| Mis CVs: a general CV per role, and the CV of each application | An application's CV, in the editor, in its own tab |
 | --- | --- |
-| ![Applications](docs/screenshots/05-applications.jpg) | ![CV editor](docs/screenshots/13-cv-preview.jpg) |
+| ![Mis CVs](docs/screenshots/21-my-cvs.jpg) | ![An application's CV](docs/screenshots/23-application-cv.jpg) |
+
+| Starting an application's CV from a general one | Applications |
+| --- | --- |
+| ![Pick the CV to start from](docs/screenshots/22-application-cv-start.jpg) | ![Applications](docs/screenshots/05-applications.jpg) |
+
+| The CV editor: click any part of the page to edit it | Mi perfil |
+| --- | --- |
+| ![CV editor](docs/screenshots/13-cv-preview.jpg) | ![Mi perfil](docs/screenshots/24-profile.jpg) |
 
 | How it reads to a screening filter and a recruiter | Template, color and typography |
 | --- | --- |
 | ![CV analysis](docs/screenshots/16-cv-analysis.jpg) | ![CV design](docs/screenshots/17-cv-design.jpg) |
 
-| An application: the process and the company | How each step went, and what is known about the company |
+| An application: the process, its CV and the company | How each step went, and what is known about the company |
 | --- | --- |
 | ![Application page](docs/screenshots/06-application-detail.jpg) | ![Debriefs and company notes](docs/screenshots/07-application-history.jpg) |
 
@@ -133,10 +148,13 @@ MCP server at **`https://retro-summer-memo.com/mcp`**: `vercel.json` forwards it
     projects, or any section the user adds), `list_experiences`, `save_experience` (linked to the
     entry where it happened), `delete_experiences`, `set_experience_levels`, `import_career`
     (a whole old CV, LinkedIn export or long story in one call; merges instead of duplicating).
-  - CVs: `cv_guidelines` (how to build CVs that pass ATS/AI screening and land), `build_cv` (a
-    selection; the server lays out the graph, generates the version and returns an outline and a
-    review: length, summary, results, wording, keywords backed by the bank), `update_cv`,
-    `build_cv_version`, `delete_cv`.
+  - CVs: `cv_guidelines` (how to build CVs that pass ATS/AI screening and land), `list_cvs`
+    (general CVs, one per role, and the CV of each application), `build_cv` (a selection; the server
+    lays out the graph, generates the version and returns an outline and a review: length, summary,
+    results, wording, keywords backed by the bank; with `application_id` it builds or rebuilds that
+    application's CV), `copy_cv` (a new general CV from another, or an application's CV from a
+    general one), `update_cv` (also moves a CV into or out of an application), `build_cv_version`
+    (with `pin_to_application_id`: the version sent), `delete_cv`.
   - Applications: `check_duplicates`, `create_application` (stage `considering`: a posting the user
     is weighing, in "Analizando propuesta", with how it fits their experience; or `applied`),
     `move_application` (leaving "Analizando propuesta" records the day they applied),

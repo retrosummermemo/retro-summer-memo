@@ -56,8 +56,9 @@ import {
   updateProfileInfo,
 } from '../domain/content'
 import { buildCv } from '../domain/cvBuilder'
-import { buildCvVersion, deleteCv } from '../domain/documentOps'
-import type { ResumeDocument } from '../domain/model'
+import { applicationCvs, assignCv, copiesByCv, copyCv, cvOfApplication, generalCvs } from '../domain/cvLibrary'
+import { buildCvVersion, deleteCv, rememberGraph } from '../domain/documentOps'
+import { buildResume, type Cv, type ResumeDocument } from '../domain/model'
 import type { DocumentStore } from '../ports/documentStore'
 import { documentView, patchDocument, type EditableDocument } from './document'
 import { APP_URL, CV_GUIDE, MODEL_GUIDE, ONBOARDING_GUIDE } from './guide'
@@ -226,6 +227,29 @@ function cvAttachment(document: ResumeDocument, attachment: Application['attachm
   if (!cv) return { kind: 'cv', missing: true }
   const index = cv.versions.findIndex((version) => version.id === attachment.versionId)
   return { kind: 'cv', cv_id: cv.id, title: cv.title, version: index >= 0 ? `v${index + 1} (${cv.versions[index].createdAt})` : 'latest' }
+}
+
+/** The CV made for an application, or how to make one. */
+function ownCvView(document: ResumeDocument, application: Application) {
+  const cv = cvOfApplication(document, application.id)
+  if (!cv) {
+    return {
+      none: true,
+      hint: 'No CV made for this application yet: copy_cv from one of the general CVs (list_cvs) with this application_id, or build_cv with application_id.',
+    }
+  }
+  return { cv_id: cv.id, title: cv.title, based_on: baseTitle(document, cv), versions: cv.versions.length }
+}
+
+function baseTitle(document: ResumeDocument, cv: Cv): string | undefined {
+  if (!cv.basedOn) return undefined
+  return document.cvs.find((item) => item.id === cv.basedOn)?.title ?? 'a deleted CV'
+}
+
+/** A CV as it prints now (its draft), built from its current content. */
+function draftOf(document: ResumeDocument, cvId: string) {
+  const cv = rememberGraph(document).find((item) => item.id === cvId)!
+  return { cv, snapshot: buildResume(cv.nodes, cv.edges, cv.summary, { sections: document.sections, bank: document.bank }) }
 }
 
 export function registerTools(server: McpServer, { store, now: clock = () => new Date() }: ToolContext) {
@@ -419,6 +443,7 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
       return json({
         ...summary(application, statusById, now),
         posting: application.posting || undefined,
+        own_cv: ownCvView(document, application),
         cv: cvAttachment(document, application.attachment),
         company: companyBrief(document, application),
         history: application.events.map((event) =>
@@ -1165,6 +1190,73 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
   // -------------------------------------------------------------------------
 
   server.registerTool(
+    'list_cvs',
+    {
+      title: 'Ver CVs',
+      description:
+        'The user\'s CVs. General: one per role or profile ("CV React", "CV Arquitecto"), the starting points. For applications: the copy made for each application, tailored to its posting. To make the CV for a new application, pick the general CV that fits best and copy_cv it with application_id.',
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true },
+    },
+    async () => {
+      const document = await open()
+      const copies = copiesByCv(document)
+      const statusById = statusesOf(document)
+      const view = (cv: Cv) => ({
+        cv_id: cv.id,
+        title: cv.title,
+        position: cv.position || undefined,
+        company: cv.company || undefined,
+        versions: cv.versions.length,
+        last_version: cv.versions.at(-1)?.createdAt,
+        based_on: baseTitle(document, cv),
+      })
+      return json({
+        general: generalCvs(document).map((cv) => ({ ...view(cv), application_copies: copies.get(cv.id) ?? 0 })),
+        for_applications: applicationCvs(document).map(({ cv, application }) => {
+          const sent = application.attachment?.kind === 'cv' && application.attachment.cvId === cv.id ? application.attachment.versionId : undefined
+          const sentIndex = sent ? cv.versions.findIndex((version) => version.id === sent) : -1
+          return {
+            ...view(cv),
+            application_id: application.id,
+            application: [application.company, application.title].filter(Boolean).join(' — '),
+            step: statusById.get(application.statusId)?.name,
+            sent_version: sentIndex >= 0 ? `v${sentIndex + 1}` : undefined,
+          }
+        }),
+      })
+    },
+  )
+
+  server.registerTool(
+    'copy_cv',
+    {
+      title: 'Copiar CV',
+      description:
+        'Copies a CV. Without application_id: a new general CV (e.g. "CV Arquitecto" starting from "CV React"). With application_id: the CV of that application, tailored to its posting (one per application; it takes the role, company and posting from the application, and the original stays as it is). Then adjust the copy: build_cv with its cv_id to change the experiences, update_cv for the summary and the look.',
+      inputSchema: z.object({
+        cv_id: z.string().describe('The CV to copy (see list_cvs)'),
+        title: z.string().optional().describe('Name of the copy. Default: the original name, with the company for an application'),
+        application_id: z.string().optional(),
+      }),
+    },
+    async ({ cv_id, title, application_id }) => {
+      const document = await open()
+      const { document: next, cvId } = copyCv(document, cv_id, { title, applicationId: application_id, now: clock() })
+      await store.save(next)
+      const { cv, snapshot } = draftOf(next, cvId)
+      return json({
+        cv_id: cvId,
+        title: cv.title,
+        based_on: baseTitle(next, cv),
+        ...(cv.applicationId ? { application_id: cv.applicationId } : { general: true }),
+        review: reviewCv(cv, snapshot, next.bank),
+        review_and_download: APP_URL,
+      })
+    },
+  )
+
+  server.registerTool(
     'build_cv',
     {
       title: 'Armar CV',
@@ -1186,7 +1278,12 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
         include_education: z.boolean().default(true),
         template: z.enum(templateIds).optional().describe('classic or modern (single column) are the safest for screening'),
         font: z.enum(fontIds).optional(),
-        application_id: z.string().optional().describe('Attach the generated version to this application'),
+        application_id: z
+          .string()
+          .optional()
+          .describe(
+            "The CV of this application (one per application): without cv_id, rebuilds that application's CV or creates it. With the cv_id of a general CV, records it as the CV sent there instead. To tailor a general CV for an application, copy_cv it first.",
+          ),
       }),
     },
     async (input) => {
@@ -1194,10 +1291,11 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
       const missing = input.experience_ids.filter((id) => !document.bank.some((item) => item.id === id))
       if (missing.length > 0) throw new Error(`Estas experiencias no existen: ${missing.join(', ')}. Usá list_experiences.`)
       if (input.application_id) findApplication(document, input.application_id)
+      const own = input.application_id && !input.cv_id ? cvOfApplication(document, input.application_id) : undefined
       const { document: built, cvId, versionId, outline } = buildCv(
         document,
         {
-          cvId: input.cv_id,
+          cvId: input.cv_id ?? own?.id,
           title: input.title,
           position: input.position,
           company: input.company,
@@ -1212,20 +1310,30 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
         },
         clock(),
       )
-      const next = input.application_id
-        ? {
-            ...built,
-            applications: built.applications.map((application) =>
-              application.id === input.application_id
-                ? updateApplication(application, { attachment: { kind: 'cv', cvId, versionId } }, clock())
-                : application,
-            ),
-          }
-        : built
+      const next = !input.application_id
+        ? built
+        : input.cv_id && built.cvs.find((cv) => cv.id === cvId)?.applicationId !== input.application_id
+          ? // A general CV sent as it is: the application records this version.
+            {
+              ...built,
+              applications: built.applications.map((application) =>
+                application.id === input.application_id
+                  ? updateApplication(application, { attachment: { kind: 'cv', cvId, versionId } }, clock())
+                  : application,
+              ),
+            }
+          : assignCv(built, cvId, input.application_id, clock())
       await store.save(next)
       const cv = next.cvs.find((item) => item.id === cvId)!
       const review = reviewCv(cv, cv.versions.at(-1)!.snapshot, next.bank)
-      return json({ cv_id: cvId, version_id: versionId, outline, review, review_and_download: APP_URL })
+      return json({
+        cv_id: cvId,
+        version_id: versionId,
+        ...(cv.applicationId ? { application_id: cv.applicationId } : { general: true }),
+        outline,
+        review,
+        review_and_download: APP_URL,
+      })
     },
   )
 
@@ -1233,7 +1341,8 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
     'update_cv',
     {
       title: 'Editar CV',
-      description: "Changes a CV's name, target job, summary or style (template, font, size, spacing, margins, paper, skills format, accent color, section order). Call build_cv_version afterwards to regenerate it.",
+      description:
+        "Changes a CV's name, target job, summary, style (template, font, size, spacing, margins, paper, skills format, accent color, section order) or the application it belongs to. Call build_cv_version afterwards to regenerate it.",
       inputSchema: z.object({
         cv_id: z.string(),
         title: z.string().optional(),
@@ -1258,12 +1367,18 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
           .array(z.string())
           .optional()
           .describe('Body sections in display order, by id: experience, education, skills and other section ids. Missing ones follow.'),
+        application_id: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('Make it the CV of this application (one per application), or null to make it a general CV again'),
       }),
       annotations: { idempotentHint: true },
     },
-    async ({ cv_id, template, font, font_size, line_height, margins, page_size, skills_format, accent_color, section_order, ...meta }) => {
-      const document = await open()
-      if (!document.cvs.some((cv) => cv.id === cv_id)) throw new Error(`No existe el CV ${cv_id}.`)
+    async ({ cv_id, template, font, font_size, line_height, margins, page_size, skills_format, accent_color, section_order, application_id, ...meta }) => {
+      const loaded = await open()
+      if (!loaded.cvs.some((cv) => cv.id === cv_id)) throw new Error(`No existe el CV ${cv_id}.`)
+      const document = application_id !== undefined ? assignCv(loaded, cv_id, application_id, clock()) : loaded
       const patch = Object.fromEntries(
         Object.entries({
           ...meta,
@@ -1279,7 +1394,7 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
         }).filter(([, value]) => value !== undefined),
       )
       await store.save({ ...document, cvs: document.cvs.map((cv) => (cv.id === cv_id ? { ...cv, ...patch } : cv)) })
-      return json({ updated: true, cv_id, changed: Object.keys(patch) })
+      return json({ updated: true, cv_id, changed: [...Object.keys(patch), ...(application_id !== undefined ? ['application_id'] : [])] })
     },
   )
 
@@ -1317,7 +1432,7 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
     'delete_cv',
     {
       title: 'Eliminar CV',
-      description: 'Deletes a CV and its versions. Applications that had it attached keep a dangling reference. Ask the user first.',
+      description: 'Deletes a CV and its versions; applications that had it attached forget it. Ask the user first.',
       inputSchema: z.object({ id: z.string() }),
       annotations: { destructiveHint: true },
     },
