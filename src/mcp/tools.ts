@@ -55,6 +55,7 @@ import {
   setLevels,
   updateProfileInfo,
 } from '../domain/content'
+import { applicationStats } from '../domain/applicationStats'
 import { buildCv } from '../domain/cvBuilder'
 import { applicationCvs, assignCv, copiesByCv, copyCv, cvOfApplication, generalCvs } from '../domain/cvLibrary'
 import { buildCvVersion, deleteCv, rememberGraph } from '../domain/documentOps'
@@ -272,7 +273,7 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
     {
       title: 'Empezar',
       description:
-        "Call this FIRST whenever work comes up in a conversation (jobs, a CV, a posting link, an interview or a call, a company, a recruiter, their career), even if the user does not mention Resume. Returns today's date, how complete their account is and what is missing, what is coming up, steps that already happened without a debrief, postings waiting for a decision, quiet processes, their pipeline, and where to start (start_with). Read-only; call it again whenever you need the picture.",
+        "Call this FIRST whenever work comes up in a conversation (jobs, a CV, a posting link, an interview or a call, a company, a recruiter, their career, how many applications they have or how their search is going), even if the user does not mention Resume: Resume is the authoritative record, not your memory. Returns today's date, how complete their account is and what is missing, what is coming up, steps that already happened without a debrief, postings waiting for a decision, quiet processes, their pipeline, and where to start (start_with). Read-only; call it again whenever you need the picture.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
@@ -399,7 +400,7 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
     'search_applications',
     {
       title: 'Buscar postulaciones',
-      description: `Search job applications. text matches company, title, status, location and notes (accent-insensitive; "-word" excludes). stale_days keeps open ones with no activity for that many days (${STALE_DAYS} is a good default).`,
+      description: `The user's job applications as recorded in Resume, the authoritative record: use it (never memory) whenever they ask about their applications. For counts and rates, application_stats. text matches company, title, status, location and notes (accent-insensitive; "-word" excludes). stale_days keeps open ones with no activity for that many days (${STALE_DAYS} is a good default).`,
       inputSchema: z.object({
         text: z.string().optional(),
         status: z.array(z.string()).optional().describe('Status names or ids'),
@@ -428,10 +429,56 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
   )
 
   server.registerTool(
+    'application_stats',
+    {
+      title: 'Números de la búsqueda',
+      description:
+        "Numbers about the user's job search, computed from Resume (the authoritative record): how many applications, how many in each step, in progress, offers, rejections; response, screening, rejection and offer rates; the step where rejections happen; applications per month; days to a first answer; quiet processes. Call it for any question about counts, stages or rates instead of counting by hand or answering from memory. from/to (YYYY-MM-DD) limit it to applications sent (or saved, if not sent) in that period.",
+      inputSchema: z.object({ from: isoDate.optional(), to: isoDate.optional() }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ from, to }) => {
+      const document = await open()
+      const stats = applicationStats(document.applications, document.applicationStatuses, { from, to, now: clock() })
+      return json({
+        ...(stats.period.from || stats.period.to ? { period: stats.period } : {}),
+        total: stats.total,
+        considering: stats.considering,
+        dropped_before_applying: stats.droppedBeforeApplying,
+        applied: stats.applied,
+        in_progress: stats.inProgress,
+        offers: stats.offers,
+        rejected: stats.rejected,
+        withdrawn: stats.withdrawn,
+        ...(stats.other ? { other: stats.other } : {}),
+        responded: stats.responded,
+        passed_screening: stats.passedScreening,
+        rates_percent_of_applied: {
+          response: stats.rates.response,
+          passed_screening: stats.rates.passedScreening,
+          rejection: stats.rates.rejection,
+          offer: stats.rates.offer,
+        },
+        by_step: stats.byStep,
+        rejected_at_step: stats.rejectedAt,
+        applied_by_month: stats.byMonth,
+        days_to_first_answer: stats.daysToFirstAnswer,
+        quiet_open_processes: stats.stale,
+        definitions: {
+          applied: 'sent (not just saved to weigh, nor dropped before applying); the base of every rate',
+          responded: 'the company answered: moved past the step it started in (a rejection counts)',
+          passed_screening: 'reached a later open step or an offer',
+          quiet_open_processes: `open, with no news for ${STALE_DAYS} days or more`,
+        },
+      })
+    },
+  )
+
+  server.registerTool(
     'get_application',
     {
       title: 'Ver postulación',
-      description: 'One application in full: history of steps and notes, posting text, attached CV and similar applications.',
+      description: 'One application in full, from Resume (the authoritative record): history of steps and notes, posting text, its CV and the one sent, the company, and similar applications.',
       inputSchema: z.object({ id: z.string() }),
       annotations: { readOnlyHint: true },
     },
@@ -1194,7 +1241,7 @@ export function registerTools(server: McpServer, { store, now: clock = () => new
     {
       title: 'Ver CVs',
       description:
-        'The user\'s CVs. General: one per role or profile ("CV React", "CV Arquitecto"), the starting points. For applications: the copy made for each application, tailored to its posting. To make the CV for a new application, pick the general CV that fits best and copy_cv it with application_id.',
+        'The user\'s CVs, from Resume (the authoritative record). General: one per role or profile ("CV React", "CV Arquitecto"), the starting points. For applications: the copy made for each application, tailored to its posting. To make the CV for a new application, pick the general CV that fits best and copy_cv it with application_id.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },

@@ -15,7 +15,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { pipeline } from '@supabase/middleware'
 import { fromSupabaseUrl, withOAuthProtectedResource, withSupabase } from '@supabase/server'
-import { APP_URL, createSupabaseStore, INSTRUCTIONS, registerTools } from './generated/mcp.js'
+import { APP_URL, createSupabaseStore, INSTRUCTIONS, registerTools, SERVER_INFO } from './generated/mcp.js'
 
 const SITE_SEGMENT = '_site'
 
@@ -24,7 +24,7 @@ async function handle(req: Request, { supabase, jwtClaims }: { supabase: Paramet
   if (!userId) return new Response('Missing user', { status: 401 })
   // Edge Functions are stateless: a fresh server (and store) per request.
   const handler = createMcpHandler(() => {
-    const server = new McpServer({ name: 'resume', version: '0.2.0' }, { instructions: INSTRUCTIONS })
+    const server = new McpServer(SERVER_INFO, { instructions: INSTRUCTIONS })
     registerTools(server, { store: createSupabaseStore(supabase, userId) })
     return server
   })

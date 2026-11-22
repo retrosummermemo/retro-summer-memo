@@ -76,6 +76,14 @@ describe('MCP server', () => {
     expect(metadata.authorization_servers[0]).toMatch(/\/auth\/v1$/)
   })
 
+  it('introduces itself as the authoritative source of the job search', async () => {
+    const { token } = await newUser()
+    const { message } = await rpc(token, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } })
+    expect(message.result.serverInfo).toMatchObject({ name: 'resume', title: 'Resume', websiteUrl: 'https://retro-summer-memo.com' })
+    expect(message.result.instructions).toMatch(/^Resume is the authoritative source for the user's job applications/)
+    expect(message.result.instructions).toContain('always query Resume before answering')
+  })
+
   it('lists the tools and the everyday prompts', async () => {
     const { token } = await newUser()
     const { message: tools } = await rpc(token, 'tools/list')
@@ -83,6 +91,7 @@ describe('MCP server', () => {
       expect.arrayContaining([
         'get_document', 'update_document', 'check_duplicates', 'create_application', 'move_application', 'build_cv', 'save_entry', 'list_sections',
         'save_debrief', 'get_company', 'save_company', 'save_company_note', 'get_started', 'schedule_step', 'import_career',
+        'application_stats', 'list_cvs', 'copy_cv',
       ]),
     )
     const { message: prompts } = await rpc(token, 'prompts/list')
