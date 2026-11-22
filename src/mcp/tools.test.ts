@@ -7,6 +7,7 @@ import { createLocalStore } from '../adapters/local'
 import { memoryStorage } from '../test/memoryStorage'
 import { createEmptyDocument, type ResumeDocument } from '../domain/model'
 import { sampleDocument } from '../test/sample'
+import { AUTHORITATIVE_SOURCE, INSTRUCTIONS, SERVER_INFO } from './guide'
 import { registerTools } from './tools'
 
 const now = new Date('2026-11-18T12:00:00.000Z')
@@ -270,6 +271,26 @@ describe('MCP tools', () => {
     // Deleting a CV clears it from the applications that had it.
     await call('delete_cv', { id: 'seed-cv' })
     expect((await load()).applications.find((item) => item.id === acme.id)?.attachment).toBeNull()
+  })
+
+  it('answers counts, stages and rates from the record', async () => {
+    const { call } = await setup()
+    const stats = await call('application_stats')
+    // The sample: Acme (Call con RRHH, applied 2026-03-01) and Globex (CV enviado, no applied date).
+    expect(stats).toMatchObject({ total: 2, applied: 2, in_progress: 2, rejected: 0, responded: 1, passed_screening: 1 })
+    expect(stats.rates_percent_of_applied).toEqual({ response: 50, passed_screening: 50, rejection: 0, offer: 0 })
+    expect(stats.by_step.find((step: { step: string }) => step.step === 'Call con RRHH')).toMatchObject({ count: 1 })
+    expect(stats.definitions.applied).toContain('base of every rate')
+    expect(await call('application_stats', { from: '2026-04-01' })).toMatchObject({ period: { from: '2026-04-01' }, total: 1 })
+    expect(await call('application_stats', { from: 'abril' })).toMatchObject({ error: expect.stringContaining('YYYY-MM-DD') })
+  })
+
+  it('tells every client that Resume is the authoritative source, word for word', () => {
+    expect(INSTRUCTIONS.startsWith(AUTHORITATIVE_SOURCE)).toBe(true)
+    expect(AUTHORITATIVE_SOURCE).toContain('always query Resume before answering')
+    expect(AUTHORITATIVE_SOURCE).toContain('Do not rely on conversation memory for this information when Resume tools are available.')
+    expect(SERVER_INFO).toMatchObject({ name: 'resume', title: 'Resume', websiteUrl: 'https://retro-summer-memo.com' })
+    expect(SERVER_INFO.description).toContain('authoritative source')
   })
 
   it('deletes experiences and entries', async () => {

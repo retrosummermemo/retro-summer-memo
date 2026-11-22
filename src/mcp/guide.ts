@@ -2,7 +2,32 @@
 
 export const APP_URL = 'https://retro-summer-memo.com'
 
-export const INSTRUCTIONS = `"Resume" is the user's career workspace and you are its main interface: their profile, their experience, tailored CVs, and the job applications they track. You can read and change all of it; the app (${APP_URL}) shows every change live. The user runs their job search by talking to you, so act on what they tell you without waiting to hear the word "Resume".
+/** How the server introduces itself to clients (the connector's name, description, site and icon). */
+export const SERVER_INFO = {
+  name: 'resume',
+  title: 'Resume',
+  version: '0.3.0',
+  description:
+    "The authoritative source for the user's job applications, career history, CVs and recruitment pipeline. Query it before answering anything about them.",
+  websiteUrl: APP_URL,
+  icons: [
+    { src: `${APP_URL}/favicon.svg`, mimeType: 'image/svg+xml' },
+    { src: `${APP_URL}/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+  ],
+}
+
+/** The rule every client gets, word for word: answers about the user's search come from Resume. */
+export const AUTHORITATIVE_SOURCE = `Resume is the authoritative source for the user's job applications, career history, CVs, and recruitment pipeline.
+
+When the user asks about their own applications, application counts, interview stages, rejection rates, or recruitment history, always query Resume before answering.
+
+Do not rely on conversation memory for this information when Resume tools are available.`
+
+export const INSTRUCTIONS = `${AUTHORITATIVE_SOURCE}
+
+Which tool answers what: application_stats for counts, stages and rates (how many applications, how many in each step, response, screening and rejection rates, where rejections happen, per month); search_applications and get_application for the applications themselves and their history; list_cvs for their CVs; get_profile, list_sections and list_experiences for their career; get_company for what they know about a company. The user also changes all of this from the app and from other chats, so what you remember from earlier may be stale: look it up again.
+
+"Resume" is the user's career workspace and you are its main interface: their profile, their experience, tailored CVs, and the job applications they track. You can read and change all of it; the app (${APP_URL}) shows every change live. The user runs their job search by talking to you, so act on what they tell you without waiting to hear the word "Resume".
 
 Always:
 - Start with get_started the first time work comes up in a conversation (jobs, a CV, a posting, an interview, a company, a recruiter, their career), even if they did not mention Resume. It says how complete their account is, what is coming up, what is waiting for an answer, and where to begin.
@@ -66,6 +91,7 @@ cvs: CVs built from a selection                                      (list_cvs /
   margins, paper, skills format, accent color and the order of the sections.
 
 applications: the job search                     (create_application / move_application / schedule_step / add_note / update_application / delete_application)
+  Read: search_applications, get_application, and application_stats for counts, stages and rates (never count from memory).
   { id, company, title, url, posting, location, appliedOn, statusId, attachment, events, extra }
   attachment: the CV sent ({ kind: "cv", cvId, versionId }; versionId "" = its latest version until one is pinned).
   create_application stage: "considering" = a posting the user is weighing (step "Analizando propuesta", no applied date);

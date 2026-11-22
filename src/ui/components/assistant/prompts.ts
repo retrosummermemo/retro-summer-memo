@@ -15,4 +15,4 @@ export const prompts = {
 
 /** For the instructions of a project in Claude or ChatGPT: every chat starts by looking at Resume. */
 export const projectInstructions =
-  'Usá Resume (el conector) para todo lo de mi búsqueda laboral y mi carrera. Al empezar cada chat sobre trabajo, llamá a get_started y seguí lo que sugiere. Si te paso el link de un aviso, guardalo como "Analizando propuesta" y decime cómo encaja conmigo. Si te cuento novedades de un proceso, actualizalo sin que te lo pida.'
+  'Usá Resume (el conector) para todo lo de mi búsqueda laboral y mi carrera. Resume es la fuente de verdad de mis postulaciones, mi carrera, mis CVs y mis procesos: si te pregunto por mis postulaciones, cuántas tengo, en qué etapa está cada una, mi tasa de rechazo o mi historial, consultá Resume antes de responder, nunca de memoria. Al empezar cada chat sobre trabajo, llamá a get_started y seguí lo que sugiere. Si te paso el link de un aviso, guardalo como "Analizando propuesta" y decime cómo encaja conmigo. Si te cuento novedades de un proceso, actualizalo sin que te lo pida.'
