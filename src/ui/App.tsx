@@ -23,6 +23,7 @@ import { Applications, type TrackerData } from './components/applications/Applic
 import { updateApplication, type Application } from '../domain/applications'
 import { ResumePreview } from './components/ResumePreview'
 import { Sidebar } from './components/Sidebar'
+import { CompareIcon, CvComparison } from './components/comparison/CvComparison'
 import { downloadDoc, downloadPdf } from './download'
 import { ExperienceMaster } from './components/Master'
 import { Library } from './components/Templates'
@@ -148,7 +149,8 @@ export default function App({ initialDocument, store, account, notice, assistant
   const connections = useConnectedApps(assistant?.access)
   const assistantConnected = (connections.apps?.length ?? 0) > 0
   const [screen, setScreen] = useState<'home' | 'workspace'>('home')
-  const [homeSection, setHomeSection] = useState<'applications' | 'projects' | 'personal' | 'experience' | 'library'>('applications')
+  const [homeSection, setHomeSection] = useState<'applications' | 'projects' | 'personal' | 'experience' | 'library' | 'comparison'>('applications')
+  const [comparisonFromWorkspace, setComparisonFromWorkspace] = useState(false)
   const [libraryKey, setLibraryKey] = useState(0)
   const [composerOpen, setComposerOpen] = useState(false)
   /** Set while the new-CV wizard was opened from a job application: the CV gets attached to it. */
@@ -874,6 +876,12 @@ export default function App({ initialDocument, store, account, notice, assistant
           setHomeSection('projects')
           setScreen('home')
         }}
+        onComparison={() => {
+          closeComposer()
+          setComparisonFromWorkspace(inWorkspace)
+          setHomeSection('comparison')
+          setScreen('home')
+        }}
         onPersonal={() => {
           closeComposer()
           setHomeSection('personal')
@@ -904,7 +912,7 @@ export default function App({ initialDocument, store, account, notice, assistant
           </button>
         </div>
       ) : null}
-      {assistant && !inWorkspace && isEmptyAccount(doc) ? (
+      {assistant && !inWorkspace && homeSection !== 'comparison' && isEmptyAccount(doc) ? (
         <Onboarding connected={assistantConnected} onConnect={() => setAssistantOpen(true)} />
       ) : null}
       {inWorkspace ? (
@@ -938,6 +946,11 @@ export default function App({ initialDocument, store, account, notice, assistant
           ) : null}
         </div>
         <div className="topbar-gap" />
+        <button type="button" className="view-toggle" title="Comparar CV y aviso · Demo" onClick={() => {
+          setComparisonFromWorkspace(true)
+          setHomeSection('comparison')
+          setScreen('home')
+        }}><CompareIcon /><span>Comparar con aviso</span></button>
         <details ref={viewsRef} className="views-anchor">
           <summary className="view-toggle views-trigger" aria-label="Vistas"><ViewsIcon /><span>Vistas</span></summary>
           <div className="view-toggles views-menu" role="toolbar" aria-label="Vistas disponibles">
@@ -1021,7 +1034,9 @@ export default function App({ initialDocument, store, account, notice, assistant
         </button>
       </header>
       ) : null}
-      {!inWorkspace && homeSection === 'applications' ? (
+      {!inWorkspace && homeSection === 'comparison' ? (
+        <CvComparison onBack={comparisonFromWorkspace && openedCv ? () => setScreen('workspace') : undefined} />
+      ) : !inWorkspace && homeSection === 'applications' ? (
         <Applications
           applications={doc.applications}
           statuses={doc.applicationStatuses}

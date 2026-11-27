@@ -1,10 +1,12 @@
 import type { SaveStatus } from '../useDocumentSync'
 import { LogoMark } from './brand/Brand'
+import { CompareIcon } from './comparison/CvComparison'
 
 type SidebarProps = {
-  section: 'applications' | 'projects' | 'personal' | 'experience' | 'library' | 'workspace'
+  section: 'applications' | 'projects' | 'personal' | 'experience' | 'library' | 'comparison' | 'workspace'
   onApplications: () => void
   onProjects: () => void
+  onComparison: () => void
   onPersonal: () => void
   onExperience: () => void
   onLibrary: () => void
@@ -15,7 +17,7 @@ type SidebarProps = {
   assistant?: { connected: boolean; onOpen: () => void }
 }
 
-export function Sidebar({ section, onApplications, onProjects, onPersonal, onExperience, onLibrary, save, onRetrySave, account, assistant }: SidebarProps) {
+export function Sidebar({ section, onApplications, onProjects, onComparison, onPersonal, onExperience, onLibrary, save, onRetrySave, account, assistant }: SidebarProps) {
   return (
     <nav className="sidebar" aria-label="Secciones">
       <span className="sidebar-brand" title="ReSuMe · Retro Summer Memo">
@@ -40,6 +42,16 @@ export function Sidebar({ section, onApplications, onProjects, onPersonal, onExp
         onClick={onProjects}
       >
         <ProjectsIcon />
+      </button>
+      <button
+        type="button"
+        className="sidebar-item"
+        aria-label="Comparar CV y aviso"
+        title="Comparar CV y aviso · Demo"
+        aria-current={section === 'comparison' ? 'page' : undefined}
+        onClick={onComparison}
+      >
+        <CompareIcon />
       </button>
       <button
         type="button"
